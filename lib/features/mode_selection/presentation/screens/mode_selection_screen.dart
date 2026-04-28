@@ -32,6 +32,13 @@ class ModeSelectionScreen extends StatelessWidget {
               'Select your challenge',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+            const SizedBox(height: 12),
+            Text(
+              'Sharpen speed. Master words.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.accent,
+                  ),
+            ),
             const SizedBox(height: 20),
             ...games.asMap().entries.map((MapEntry<int, GameDefinition> entry) {
               final int index = entry.key;
@@ -118,8 +125,20 @@ class _ModeCard extends StatelessWidget {
                   width: 54,
                   height: 54,
                   decoration: BoxDecoration(
-                    color: color,
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        color,
+                        Color.lerp(color, Colors.white, 0.18)!,
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(16),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     isAvailable ? icon : Icons.lock_rounded,
