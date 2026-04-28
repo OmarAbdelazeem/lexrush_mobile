@@ -45,6 +45,8 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
         ? "Perfect accuracy! You're a word master."
         : widget.result.stats.accuracy >= 70
             ? 'Great job! Keep up the momentum.'
+            : widget.result.stats.accuracy < 60
+                ? 'Good start - your speed will improve fast.'
             : widget.result.stats.wordsSolved >= 10
                 ? "Good effort! You're improving."
                 : 'Keep practicing to boost your score.';

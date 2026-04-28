@@ -68,7 +68,7 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
       return;
     }
 
-    _deadframeGuardTimer ??= Timer(const Duration(milliseconds: 650), () {
+    _deadframeGuardTimer ??= Timer(const Duration(milliseconds: 1050), () {
       _deadframeGuardTimer = null;
       final AntonymRushState latest = cubit.state;
       final List<BalloonOption> latestOptions = latest.currentRound?.options ?? const <BalloonOption>[];
@@ -170,7 +170,7 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                         top: 240,
                         left: 10,
                         right: 10,
-                        bottom: 132,
+                        bottom: 152,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(18),
                           child: Stack(
@@ -618,14 +618,14 @@ class _BalloonChoiceState extends State<_BalloonChoice>
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {
-        final double topFactor = (0.92 + (verticalOffset * 0.7)) + (-0.84 * _controller.value);
+        final double topFactor = (0.78 + (verticalOffset * 0.55)) + (-0.56 * _controller.value);
         final double left = (widget.playfieldWidth * lane).clamp(
           12 + (_balloonWidth / 2),
           widget.playfieldWidth - 12 - (_balloonWidth / 2),
         ) - (_balloonWidth / 2);
         final double top = (widget.playfieldHeight * topFactor).clamp(
-          8,
-          widget.playfieldHeight - 28,
+          16,
+          widget.playfieldHeight - _balloonHeight - 12,
         );
         final bool isVisible =
             !widget.escaped && top < (widget.playfieldHeight - 6) && (top + _balloonHeight) > 6;

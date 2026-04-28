@@ -11,6 +11,7 @@ import 'package:lexrush/shared/application/cubits/base_game_session_cubit.dart';
 import 'package:lexrush/shared/application/services/replay_goal_service.dart';
 import 'package:lexrush/shared/application/services/scoring_service.dart';
 import 'package:lexrush/shared/domain/contracts/lexrush_game_controller.dart';
+import 'package:lexrush/shared/domain/entities/difficulty_phase.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
 import 'package:lexrush/shared/domain/entities/game_session_stats.dart';
 
@@ -273,7 +274,13 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
 
   void _scheduleRoundEscape(AntonymRound round) {
     _roundEscapeTimer?.cancel();
-    final int ms = ((state.currentSpeed * 1000) + 250).round().clamp(2200, 8000);
+    final phase = _difficultyService.phaseForTimeLeft(state.timeLeft);
+    final int phaseBufferMs = switch (phase) {
+      DifficultyPhase.early => 520,
+      DifficultyPhase.mid => 320,
+      DifficultyPhase.late => 180,
+    };
+    final int ms = ((state.currentSpeed * 1000) + phaseBufferMs).round().clamp(2100, 5000);
     debugPrint('[AntonymRushCubit] schedule round escape round=${round.roundId} afterMs=$ms');
     _roundEscapeTimer = Timer(Duration(milliseconds: ms), () {
       final AntonymRound? current = state.currentRound;

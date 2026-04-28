@@ -5,6 +5,13 @@ import 'package:lexrush/shared/domain/entities/difficulty_phase.dart';
 class AntonymDifficultyService {
   const AntonymDifficultyService();
 
+  static const double _earlySpeedStart = 3.75;
+  static const double _earlySpeedMin = 3.25;
+  static const double _midSpeedStart = 3.10;
+  static const double _midSpeedMin = 2.65;
+  static const double _lateSpeedStart = 2.45;
+  static const double _lateSpeedMin = 2.05;
+
   DifficultyPhase phaseForTimeLeft(int secondsLeft) {
     if (secondsLeft > 40) return DifficultyPhase.early;
     if (secondsLeft > 15) return DifficultyPhase.mid;
@@ -61,11 +68,20 @@ class AntonymDifficultyService {
     final double speed;
     switch (phase) {
       case DifficultyPhase.early:
-        speed = (5.3 - clampedWordsSolved * 0.04).clamp(4.5, 5.3);
+        speed = (_earlySpeedStart - clampedWordsSolved * 0.018).clamp(
+          _earlySpeedMin,
+          _earlySpeedStart,
+        );
       case DifficultyPhase.mid:
-        speed = (4.5 - clampedWordsSolved * 0.035).clamp(3.8, 4.5);
+        speed = (_midSpeedStart - clampedWordsSolved * 0.017).clamp(
+          _midSpeedMin,
+          _midSpeedStart,
+        );
       case DifficultyPhase.late:
-        speed = (3.9 - clampedWordsSolved * 0.03).clamp(3.1, 3.9);
+        speed = (_lateSpeedStart - clampedWordsSolved * 0.014).clamp(
+          _lateSpeedMin,
+          _lateSpeedStart,
+        );
     }
     debugPrint('[AntonymDifficultyService] phase=$phase wordsSolved=$wordsSolved speed=$speed');
     return speed;
