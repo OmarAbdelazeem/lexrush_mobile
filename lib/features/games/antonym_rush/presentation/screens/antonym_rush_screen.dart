@@ -75,7 +75,7 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
       final bool latestAnyVisible = latestOptions.any((BalloonOption option) => _visibilityByOption[option.id] == true);
       if (latest.status == AntonymRushStatus.playing && latestOptions.isNotEmpty && !latestAnyVisible) {
         debugPrint('[AntonymRushScreen] deadframe guard -> registerMissedRound');
-        cubit.registerMissedRound();
+        cubit.registerMissedRound(reason: MissedReason.watchdog);
       }
     });
   }

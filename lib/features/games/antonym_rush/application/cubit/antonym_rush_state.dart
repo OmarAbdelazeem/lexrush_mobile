@@ -16,6 +16,13 @@ enum RoundOutcome {
   missed,
 }
 
+enum MissedReason {
+  correctEscaped,
+  allEscaped,
+  watchdog,
+  roundTimeout,
+}
+
 class AntonymRushState extends Equatable {
   const AntonymRushState({
     required this.status,

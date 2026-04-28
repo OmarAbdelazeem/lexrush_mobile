@@ -11,6 +11,7 @@ class AntonymDifficultyService {
   static const double _midSpeedMin = 2.65;
   static const double _lateSpeedStart = 2.45;
   static const double _lateSpeedMin = 2.05;
+  static const double _earlySessionBonusSeconds = 0.32;
 
   DifficultyPhase phaseForTimeLeft(int secondsLeft) {
     if (secondsLeft > 40) return DifficultyPhase.early;
@@ -65,25 +66,24 @@ class AntonymDifficultyService {
     required int wordsSolved,
   }) {
     final int clampedWordsSolved = wordsSolved.clamp(0, 18);
-    final double speed;
-    switch (phase) {
-      case DifficultyPhase.early:
-        speed = (_earlySpeedStart - clampedWordsSolved * 0.018).clamp(
+    final double speed = switch (phase) {
+      DifficultyPhase.early => (_earlySpeedStart - clampedWordsSolved * 0.018).clamp(
           _earlySpeedMin,
           _earlySpeedStart,
-        );
-      case DifficultyPhase.mid:
-        speed = (_midSpeedStart - clampedWordsSolved * 0.017).clamp(
+        ),
+      DifficultyPhase.mid => (_midSpeedStart - clampedWordsSolved * 0.017).clamp(
           _midSpeedMin,
           _midSpeedStart,
-        );
-      case DifficultyPhase.late:
-        speed = (_lateSpeedStart - clampedWordsSolved * 0.014).clamp(
+        ),
+      DifficultyPhase.late => (_lateSpeedStart - clampedWordsSolved * 0.014).clamp(
           _lateSpeedMin,
           _lateSpeedStart,
-        );
-    }
-    debugPrint('[AntonymDifficultyService] phase=$phase wordsSolved=$wordsSolved speed=$speed');
-    return speed;
+        ),
+    };
+    final double adjustedSpeed = wordsSolved < 5 ? speed + _earlySessionBonusSeconds : speed;
+    debugPrint(
+      '[AntonymDifficultyService] phase=$phase wordsSolved=$wordsSolved speed=$adjustedSpeed raw=$speed',
+    );
+    return adjustedSpeed;
   }
 }

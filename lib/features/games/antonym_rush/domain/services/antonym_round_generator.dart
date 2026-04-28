@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:lexrush/features/games/antonym_rush/domain/entities/antonym_difficulty.dart';
 import 'package:lexrush/features/games/antonym_rush/domain/entities/antonym_pair.dart';
 import 'package:lexrush/features/games/antonym_rush/domain/entities/balloon_option.dart';
 import 'package:lexrush/features/games/antonym_rush/domain/entities/antonym_round.dart';
@@ -33,7 +34,11 @@ class AntonymRoundGenerator {
     required int wordsSolved,
   }) {
     final phase = difficultyService.phaseForTimeLeft(timeLeft);
-    final AntonymPair pair = _nextPair(phase: phase);
+    final AntonymPair pair = _nextPair(
+      phase: phase,
+      timeLeft: timeLeft,
+      wordsSolved: wordsSolved,
+    );
     final List<String> answers = <String>[pair.antonym, ...pair.distractors]..shuffle(_random);
     final List<BalloonOption> options = answers
         .map(
@@ -48,6 +53,7 @@ class AntonymRoundGenerator {
       roundId: ++_roundId,
       targetWord: pair.word,
       correctAnswer: pair.antonym,
+      pairDifficulty: pair.difficulty,
       options: options,
       startedAt: DateTime.now(),
     );
@@ -55,9 +61,24 @@ class AntonymRoundGenerator {
     return round;
   }
 
-  AntonymPair _nextPair({required DifficultyPhase phase}) {
+  AntonymPair _nextPair({
+    required DifficultyPhase phase,
+    required int timeLeft,
+    required int wordsSolved,
+  }) {
     final allowed = difficultyService.allowedForPhase(phase);
-    final preferred = difficultyService.preferredForPhase(phase);
+    List<AntonymDifficulty> preferred = difficultyService.preferredForPhase(phase);
+    if (timeLeft > 15) {
+      preferred = preferred.where((d) => d != AntonymDifficulty.hard).toList(growable: false);
+    }
+    if (wordsSolved < 5) {
+      preferred = const <AntonymDifficulty>[
+        AntonymDifficulty.easy,
+        AntonymDifficulty.easy,
+        AntonymDifficulty.easy,
+        AntonymDifficulty.medium,
+      ];
+    }
     if (_queue.isEmpty) {
       _queue = List<int>.generate(pairs.length, (int index) => index)..shuffle(_random);
     }
