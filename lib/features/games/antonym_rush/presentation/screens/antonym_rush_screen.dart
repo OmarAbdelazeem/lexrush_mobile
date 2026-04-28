@@ -161,6 +161,63 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                         ),
                       const _BackgroundLetters(),
                       Positioned(
+                        top: 108,
+                        left: 10,
+                        right: 10,
+                        bottom: 152,
+                        child: LayoutBuilder(
+                          builder:
+                              (
+                                BuildContext context,
+                                BoxConstraints constraints,
+                              ) {
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: options
+                                      .asMap()
+                                      .entries
+                                      .map((entry) {
+                                        final int index = entry.key;
+                                        final BalloonOption option =
+                                            entry.value;
+                                        return _BalloonChoice(
+                                          key: ValueKey<String>(
+                                            '${state.currentRound?.roundId}-${option.id}',
+                                          ),
+                                          option: option,
+                                          roundId:
+                                              state.currentRound?.roundId ?? 0,
+                                          laneIndex: index,
+                                          roundSpeedSeconds: state.currentSpeed,
+                                          escaped: state.escapedOptionIds
+                                              .contains(option.id),
+                                          enabled:
+                                              state.status ==
+                                              AntonymRushStatus.playing,
+                                          playfieldWidth: constraints.maxWidth,
+                                          playfieldHeight:
+                                              constraints.maxHeight,
+                                          onTap: () =>
+                                              cubit.submitAnswer(option.id),
+                                          onEscaped: () =>
+                                              cubit.onBalloonEscaped(option.id),
+                                          onVisibilityChanged:
+                                              (String id, bool visible) {
+                                                _onOptionVisibilityChanged(
+                                                  id,
+                                                  visible,
+                                                  state: state,
+                                                  cubit: cubit,
+                                                );
+                                              },
+                                        );
+                                      })
+                                      .toList(growable: false),
+                                );
+                              },
+                        ),
+                      ),
+                      Positioned(
                         top: 18,
                         left: 16,
                         right: 16,
@@ -184,77 +241,6 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                         child: _TargetWordCard(
                           promptLabel: widget.promptLabel,
                           target: target,
-                        ),
-                      ),
-                      Positioned(
-                        top: 240,
-                        left: 10,
-                        right: 10,
-                        bottom: 152,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: Stack(
-                            children: <Widget>[
-                              LayoutBuilder(
-                                builder:
-                                    (
-                                      BuildContext context,
-                                      BoxConstraints constraints,
-                                    ) {
-                                      return Stack(
-                                        children: options
-                                            .asMap()
-                                            .entries
-                                            .map((entry) {
-                                              final int index = entry.key;
-                                              final BalloonOption option =
-                                                  entry.value;
-                                              return _BalloonChoice(
-                                                key: ValueKey<String>(
-                                                  '${state.currentRound?.roundId}-${option.id}',
-                                                ),
-                                                option: option,
-                                                roundId:
-                                                    state
-                                                        .currentRound
-                                                        ?.roundId ??
-                                                    0,
-                                                laneIndex: index,
-                                                roundSpeedSeconds:
-                                                    state.currentSpeed,
-                                                escaped: state.escapedOptionIds
-                                                    .contains(option.id),
-                                                enabled:
-                                                    state.status ==
-                                                    AntonymRushStatus.playing,
-                                                playfieldWidth:
-                                                    constraints.maxWidth,
-                                                playfieldHeight:
-                                                    constraints.maxHeight,
-                                                onTap: () => cubit.submitAnswer(
-                                                  option.id,
-                                                ),
-                                                onEscaped: () =>
-                                                    cubit.onBalloonEscaped(
-                                                      option.id,
-                                                    ),
-                                                onVisibilityChanged:
-                                                    (String id, bool visible) {
-                                                      _onOptionVisibilityChanged(
-                                                        id,
-                                                        visible,
-                                                        state: state,
-                                                        cubit: cubit,
-                                                      );
-                                                    },
-                                              );
-                                            })
-                                            .toList(growable: false),
-                                      );
-                                    },
-                              ),
-                            ],
-                          ),
                         ),
                       ),
                       if (visibleFeedbackText != null)
