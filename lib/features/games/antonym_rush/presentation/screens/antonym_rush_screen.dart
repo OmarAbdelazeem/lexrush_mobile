@@ -29,10 +29,14 @@ class AntonymRushScreen extends StatefulWidget {
 class _AntonymRushScreenState extends State<AntonymRushScreen> {
   final Map<String, bool> _visibilityByOption = <String, bool>{};
   Timer? _deadframeGuardTimer;
+  Timer? _feedbackLatchTimer;
+  String? _latchedFeedbackText;
+  RoundOutcome? _latchedFeedbackOutcome;
 
   @override
   void dispose() {
     _deadframeGuardTimer?.cancel();
+    _feedbackLatchTimer?.cancel();
     super.dispose();
   }
 
@@ -91,6 +95,22 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
           final AntonymRushCubit cubit = context.read<AntonymRushCubit>();
           final String target = state.currentRound?.targetWord ?? '...';
           final List<BalloonOption> options = state.currentRound?.options ?? const <BalloonOption>[];
+          if (state.feedbackText != null && state.feedbackText != _latchedFeedbackText) {
+            _feedbackLatchTimer?.cancel();
+            _latchedFeedbackText = state.feedbackText;
+            _latchedFeedbackOutcome = state.lastOutcome;
+            _feedbackLatchTimer = Timer(const Duration(milliseconds: 520), () {
+              if (!mounted) return;
+              setState(() {
+                _latchedFeedbackText = null;
+                _latchedFeedbackOutcome = null;
+              });
+            });
+          }
+          final String? visibleFeedbackText = state.feedbackText ?? _latchedFeedbackText;
+          final RoundOutcome? visibleFeedbackOutcome = state.feedbackText != null
+              ? state.lastOutcome
+              : _latchedFeedbackOutcome;
           _visibilityByOption.removeWhere((String key, bool value) => !options.any((o) => o.id == key));
           _evaluateDeadframeGuard(state: state, cubit: cubit);
           final bool urgent = state.timeLeft <= 10;
@@ -166,6 +186,7 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                                           '${state.currentRound?.roundId}-${option.id}',
                                         ),
                                         option: option,
+                                        roundId: state.currentRound?.roundId ?? 0,
                                         laneIndex: index,
                                         roundSpeedSeconds: state.currentSpeed,
                                         escaped: state.escapedOptionIds.contains(option.id),
@@ -191,32 +212,73 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                           ),
                         ),
                       ),
-                      if (state.feedbackText != null)
+                      if (visibleFeedbackText != null)
                         Positioned(
-                          top: 392,
-                          left: 0,
-                          right: 0,
+                          top: 304,
+                          left: 26,
+                          right: 26,
                           child: IgnorePointer(
                             child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 160),
-                              child: Text(
-                                state.feedbackText!,
-                                key: ValueKey<String>(state.feedbackText!),
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                      color: state.lastOutcome == RoundOutcome.wrong
-                                          ? AppColors.error
-                                          : state.lastOutcome == RoundOutcome.missed
-                                              ? AppColors.reward
-                                              : AppColors.accent,
-                                      shadows: const <Shadow>[
-                                        Shadow(
-                                          blurRadius: 14,
-                                          color: Colors.black54,
-                                          offset: Offset(0, 2),
-                                        ),
-                                      ],
+                              duration: const Duration(milliseconds: 260),
+                              reverseDuration: const Duration(milliseconds: 180),
+                              transitionBuilder: (Widget child, Animation<double> animation) {
+                                final Animation<double> slide = Tween<double>(
+                                  begin: 10,
+                                  end: 0,
+                                ).animate(animation);
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: AnimatedBuilder(
+                                    animation: animation,
+                                    builder: (BuildContext context, Widget? _) {
+                                      final double scale = 0.93 + (0.07 * animation.value);
+                                      return Transform.translate(
+                                        offset: Offset(0, -slide.value),
+                                        child: Transform.scale(scale: scale, child: child),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                key: ValueKey<String>(visibleFeedbackText),
+                                alignment: Alignment.center,
+                                constraints: const BoxConstraints(minHeight: 42),
+                                margin: const EdgeInsets.symmetric(horizontal: 82),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: (visibleFeedbackOutcome == RoundOutcome.wrong
+                                            ? AppColors.error
+                                            : visibleFeedbackOutcome == RoundOutcome.missed
+                                                ? AppColors.reward
+                                                : AppColors.accent)
+                                        .withValues(alpha: 0.7),
+                                  ),
+                                  boxShadow: const <BoxShadow>[
+                                    BoxShadow(
+                                      blurRadius: 14,
+                                      color: Colors.black54,
+                                      offset: Offset(0, 4),
                                     ),
-                                textAlign: TextAlign.center,
+                                  ],
+                                ),
+                                child: Text(
+                                  visibleFeedbackText,
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        color: visibleFeedbackOutcome == RoundOutcome.wrong
+                                            ? AppColors.error
+                                            : visibleFeedbackOutcome == RoundOutcome.missed
+                                                ? AppColors.reward
+                                                : AppColors.accent,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 24,
+                                        letterSpacing: 0.2,
+                                      ),
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
                             ),
                           ),
@@ -385,23 +447,40 @@ class _TargetWordCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: <Color>[AppColors.primary, AppColors.accent],
+          colors: <Color>[Color(0xFF5951EE), Color(0xFF28C7EB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(22),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.45),
-            blurRadius: 28,
-            offset: const Offset(0, 8),
+            color: AppColors.primary.withValues(alpha: 0.5),
+            blurRadius: 26,
+            spreadRadius: 2,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: AppColors.accent.withValues(alpha: 0.20),
+            blurRadius: 40,
+            spreadRadius: 1,
+            offset: const Offset(0, 0),
           ),
         ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Column(
           children: <Widget>[
+            Container(
+              height: 4,
+              width: 88,
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
             Text(
               promptLabel.toUpperCase(),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -414,8 +493,15 @@ class _TargetWordCard extends StatelessWidget {
               target,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
-                    fontSize: 44,
+                    fontSize: 43,
                     fontWeight: FontWeight.w700,
+                    shadows: const <Shadow>[
+                      Shadow(
+                        blurRadius: 10,
+                        color: Colors.black26,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
             ),
           ],
@@ -428,6 +514,7 @@ class _TargetWordCard extends StatelessWidget {
 class _BalloonChoice extends StatefulWidget {
   const _BalloonChoice({
     required this.option,
+    required this.roundId,
     required this.laneIndex,
     required this.roundSpeedSeconds,
     required this.escaped,
@@ -441,6 +528,7 @@ class _BalloonChoice extends StatefulWidget {
   });
 
   final BalloonOption option;
+  final int roundId;
   final int laneIndex;
   final double roundSpeedSeconds;
   final bool escaped;
@@ -457,8 +545,16 @@ class _BalloonChoice extends StatefulWidget {
 
 class _BalloonChoiceState extends State<_BalloonChoice>
     with SingleTickerProviderStateMixin {
-  static const double _balloonWidth = 102;
+  static const double _balloonWidth = 104;
   static const double _balloonHeight = 152;
+  static const List<List<int>> _lanePatterns = <List<int>>[
+    <int>[0, 2, 1, 3],
+    <int>[1, 3, 0, 2],
+    <int>[2, 0, 3, 1],
+    <int>[3, 1, 2, 0],
+  ];
+  static const List<double> _laneAnchors = <double>[0.11, 0.34, 0.63, 0.86];
+  static const List<double> _verticalOffsets = <double>[-0.030, 0.008, -0.014, 0.022];
   late final AnimationController _controller;
   bool _escapeNotified = false;
   bool _lastVisible = false;
@@ -513,19 +609,23 @@ class _BalloonChoiceState extends State<_BalloonChoice>
 
   @override
   Widget build(BuildContext context) {
-    const List<double> lanes = <double>[0.08, 0.32, 0.56, 0.80];
-    final double lane = lanes[widget.laneIndex % lanes.length];
+    final List<int> lanePattern = _lanePatterns[widget.roundId % _lanePatterns.length];
+    final int laneSlot = lanePattern[widget.laneIndex % lanePattern.length];
+    final double laneJitter = (((widget.roundId * 11) + (widget.laneIndex * 17)) % 9 - 4) * 0.003;
+    final double lane = (_laneAnchors[laneSlot] + laneJitter).clamp(0.08, 0.90);
+    final double verticalJitter = (((widget.roundId * 13) + (widget.laneIndex * 19)) % 7 - 3) * 0.006;
+    final double verticalOffset = (_verticalOffsets[laneSlot] + verticalJitter).clamp(-0.045, 0.035);
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {
-        final double topFactor = 0.76 + (-1.02 * _controller.value);
+        final double topFactor = (0.92 + (verticalOffset * 0.7)) + (-0.84 * _controller.value);
         final double left = (widget.playfieldWidth * lane).clamp(
           12 + (_balloonWidth / 2),
           widget.playfieldWidth - 12 - (_balloonWidth / 2),
         ) - (_balloonWidth / 2);
         final double top = (widget.playfieldHeight * topFactor).clamp(
-          -_balloonHeight + 8,
-          widget.playfieldHeight - 20,
+          8,
+          widget.playfieldHeight - 28,
         );
         final bool isVisible =
             !widget.escaped && top < (widget.playfieldHeight - 6) && (top + _balloonHeight) > 6;
@@ -555,9 +655,9 @@ class _BalloonChoiceState extends State<_BalloonChoice>
                 top: 8,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 96,
+                  width: 98,
                   height: 116,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
                     gradient: _balloonGradient(widget.option.word),
                     borderRadius: const BorderRadius.all(Radius.elliptical(56, 64)),
@@ -570,13 +670,19 @@ class _BalloonChoiceState extends State<_BalloonChoice>
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    widget.option.word,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 17,
-                          color: Colors.white,
-                        ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.option.word,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontSize: _fontSizeForWord(widget.option.word),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            height: 1.0,
+                          ),
+                    ),
                   ),
                 ),
               ),
@@ -641,5 +747,12 @@ class _BalloonChoiceState extends State<_BalloonChoice>
         Color.lerp(base, Colors.white, 0.18)!,
       ],
     );
+  }
+
+  double _fontSizeForWord(String word) {
+    final int len = word.length;
+    if (len >= 10) return 14.8;
+    if (len >= 8) return 16.0;
+    return 17.2;
   }
 }
