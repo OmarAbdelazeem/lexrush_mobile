@@ -22,15 +22,18 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     AntonymDifficultyService? difficultyService,
     ScoringService? scoringService,
     ReplayGoalService? replayGoalService,
-  })  : _difficultyService = difficultyService ?? const AntonymDifficultyService(),
-        _scoringService = scoringService ?? const ScoringService(),
-        _replayGoalService = replayGoalService ?? const ReplayGoalService(),
-        _roundGenerator = roundGenerator ??
-            AntonymRoundGenerator(
-              pairs: antonymPairs,
-              difficultyService: difficultyService ?? const AntonymDifficultyService(),
-            ),
-        super(AntonymRushState.initial());
+  }) : _difficultyService =
+           difficultyService ?? const AntonymDifficultyService(),
+       _scoringService = scoringService ?? const ScoringService(),
+       _replayGoalService = replayGoalService ?? const ReplayGoalService(),
+       _roundGenerator =
+           roundGenerator ??
+           AntonymRoundGenerator(
+             pairs: antonymPairs,
+             difficultyService:
+                 difficultyService ?? const AntonymDifficultyService(),
+           ),
+       super(AntonymRushState.initial());
 
   final AntonymDifficultyService _difficultyService;
   final ScoringService _scoringService;
@@ -56,9 +59,12 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
   static const Duration _correctDelay = Duration(milliseconds: 300);
   static const Duration _wrongDelay = Duration(milliseconds: 550);
   static const Duration _missedDelay = Duration(milliseconds: 100);
-  static const int _earlyMinAutoMissMs = 3400;
-  static const int _midMinAutoMissMs = 2800;
-  static const int _lateMinAutoMissMs = 2200;
+  static const int _beginnerRoundCount = 5;
+  static const int _beginnerMinAutoMissMs = 5000;
+  static const int _earlyMinAutoMissMs = 4200;
+  static const int _midMinAutoMissMs = 3400;
+  static const int _lateMinAutoMissMs = 2600;
+  static const int _escapeSafetyBufferMs = 2000;
 
   @override
   void start() {
@@ -73,7 +79,11 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     _roundEscapeTimer?.cancel();
     _pendingRoundStartOnResume = false;
     final phase = _difficultyService.phaseForTimeLeft(60);
-    final speed = _difficultyService.speedFor(phase: phase, wordsSolved: 0);
+    final speed = _difficultyService.speedFor(
+      phase: phase,
+      wordsSolved: 0,
+      beginnerMode: true,
+    );
     emit(
       AntonymRushState.initial().copyWith(
         status: AntonymRushStatus.playing,
@@ -133,16 +143,59 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
   @override
   void submitAnswer(String answerId) {
     final AntonymRound? round = state.currentRound;
-    if (!_canResolveRound(round) || state.status != AntonymRushStatus.playing) {
+    if (round == null) {
+      _emitIgnoredTapTelemetry(
+        round: null,
+        answerId: answerId,
+        reason: 'no_current_round',
+      );
       return;
     }
-    final AntonymRound activeRound = round!;
-    final BalloonOption selected = activeRound.options.firstWhere((o) => o.id == answerId);
+    if (state.status != AntonymRushStatus.playing) {
+      _emitIgnoredTapTelemetry(
+        round: round,
+        answerId: answerId,
+        reason: 'not_playing',
+      );
+      return;
+    }
+    if (!_canResolveRound(round)) {
+      _emitIgnoredTapTelemetry(
+        round: round,
+        answerId: answerId,
+        reason: 'round_locked_or_resolved',
+      );
+      return;
+    }
+    final AntonymRound activeRound = round;
+    final BalloonOption? selected = _optionForId(activeRound, answerId);
+    if (selected == null) {
+      _emitIgnoredTapTelemetry(
+        round: activeRound,
+        answerId: answerId,
+        reason: 'missing_option_id',
+      );
+      return;
+    }
+    final int scoreBefore = state.score;
+    final int comboBefore = state.combo;
+    final RoundOutcome expectedOutcome = selected.isCorrect
+        ? RoundOutcome.correct
+        : RoundOutcome.wrong;
     if (selected.isCorrect) {
       _handleCorrect(activeRound);
     } else {
       _handleWrong(activeRound);
     }
+    _emitTapTelemetry(
+      round: activeRound,
+      selected: selected,
+      expectedOutcome: expectedOutcome,
+      scoreBefore: scoreBefore,
+      scoreAfter: state.score,
+      comboBefore: comboBefore,
+      comboAfter: state.combo,
+    );
   }
 
   void registerMissedRound({MissedReason reason = MissedReason.roundTimeout}) {
@@ -191,12 +244,18 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     }
     final Set<String> escaped = <String>{...state.escapedOptionIds, optionId};
     emit(state.copyWith(escapedOptionIds: escaped));
-    final BalloonOption option = currentRound.options.firstWhere((o) => o.id == optionId);
+    final BalloonOption option = currentRound.options.firstWhere(
+      (o) => o.id == optionId,
+    );
     final bool allEscaped = escaped.length >= currentRound.options.length;
-    debugPrint('[AntonymRushCubit] balloon escaped id=$optionId correct=${option.isCorrect} allEscaped=$allEscaped');
+    debugPrint(
+      '[AntonymRushCubit] balloon escaped id=$optionId correct=${option.isCorrect} allEscaped=$allEscaped',
+    );
     if (option.isCorrect || allEscaped) {
       registerMissedRound(
-        reason: option.isCorrect ? MissedReason.correctEscaped : MissedReason.allEscaped,
+        reason: option.isCorrect
+            ? MissedReason.correctEscaped
+            : MissedReason.allEscaped,
       );
     }
   }
@@ -242,11 +301,15 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
       wordsSolved: state.wordsSolved,
     );
     final phase = _difficultyService.phaseForTimeLeft(state.timeLeft);
+    final bool beginnerRound = round.roundId <= _beginnerRoundCount;
     final speed = _difficultyService.speedFor(
       phase: phase,
       wordsSolved: state.wordsSolved,
+      beginnerMode: beginnerRound,
     );
-    debugPrint('[AntonymRushCubit] startRound id=${round.roundId} phase=$phase');
+    debugPrint(
+      '[AntonymRushCubit] startRound id=${round.roundId} phase=$phase',
+    );
     _roundTelemetry[round.roundId] = _RoundTelemetry(
       roundId: round.roundId,
       targetWord: round.targetWord,
@@ -271,13 +334,17 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
 
   void _handleCorrect(AntonymRound round) {
     if (!_markResolved(round.roundId)) return;
-    final int responseTime = DateTime.now().difference(round.startedAt).inMilliseconds;
+    final int responseTime = DateTime.now()
+        .difference(round.startedAt)
+        .inMilliseconds;
     _responseTimesMs.add(responseTime);
     final int comboMultiplier = (state.combo ~/ 3) + 1;
     final int points = _correctPoints * comboMultiplier;
     final int nextCombo = state.combo + 1;
     _roundEscapeTimer?.cancel();
-    debugPrint('[AntonymRushCubit] correct round=${round.roundId} points=$points');
+    debugPrint(
+      '[AntonymRushCubit] correct round=${round.roundId} points=$points',
+    );
     _emitTelemetry(
       round: round,
       event: 'round_resolved',
@@ -305,12 +372,17 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
 
   void _handleWrong(AntonymRound round) {
     if (!_markResolved(round.roundId)) return;
-    final int responseTime = DateTime.now().difference(round.startedAt).inMilliseconds;
+    final int responseTime = DateTime.now()
+        .difference(round.startedAt)
+        .inMilliseconds;
     _responseTimesMs.add(responseTime);
     _roundEscapeTimer?.cancel();
     debugPrint('[AntonymRushCubit] wrong round=${round.roundId}');
     final int timeLeftBefore = state.timeLeft;
-    final int timeLeftAfter = (state.timeLeft - _wrongPenaltySeconds).clamp(0, 60);
+    final int timeLeftAfter = (state.timeLeft - _wrongPenaltySeconds).clamp(
+      0,
+      60,
+    );
     _emitTelemetry(
       round: round,
       event: 'round_resolved',
@@ -347,14 +419,20 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
   void _scheduleRoundEscape(AntonymRound round) {
     _roundEscapeTimer?.cancel();
     final phase = _difficultyService.phaseForTimeLeft(state.timeLeft);
-    final int minAutoMissMs = switch (phase) {
+    final bool beginnerRound = round.roundId <= _beginnerRoundCount;
+    final int phaseMinAutoMissMs = switch (phase) {
       DifficultyPhase.early => _earlyMinAutoMissMs,
       DifficultyPhase.mid => _midMinAutoMissMs,
       DifficultyPhase.late => _lateMinAutoMissMs,
     };
+    final int minAutoMissMs = beginnerRound
+        ? _beginnerMinAutoMissMs
+        : phaseMinAutoMissMs;
     final int expectedWindowMs = (state.currentSpeed * 1000).round();
-    final int configuredTimeoutMs = expectedWindowMs.clamp(1800, 3400);
-    final int autoMissMs = configuredTimeoutMs < minAutoMissMs ? minAutoMissMs : configuredTimeoutMs;
+    final int configuredTimeoutMs = expectedWindowMs + _escapeSafetyBufferMs;
+    final int autoMissMs = configuredTimeoutMs < minAutoMissMs
+        ? minAutoMissMs
+        : configuredTimeoutMs;
     final _RoundTelemetry? telemetry = _roundTelemetry[round.roundId];
     if (telemetry != null) {
       telemetry
@@ -366,11 +444,16 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     _emitTelemetry(
       round: round,
       event: 'round_escape_scheduled',
-      extra: 'expectedWindowMs=$expectedWindowMs configuredTimeoutMs=$configuredTimeoutMs minAutoMissMs=$minAutoMissMs autoMissMs=$autoMissMs',
+      extra:
+          'expectedWindowMs=$expectedWindowMs safetyBufferMs=$_escapeSafetyBufferMs configuredTimeoutMs=$configuredTimeoutMs minAutoMissMs=$minAutoMissMs autoMissMs=$autoMissMs',
     );
     _roundEscapeTimer = Timer(Duration(milliseconds: autoMissMs), () {
       final AntonymRound? current = state.currentRound;
-      if (current == null || current.roundId != round.roundId || !_canResolveRound(current)) return;
+      if (current == null ||
+          current.roundId != round.roundId ||
+          !_canResolveRound(current)) {
+        return;
+      }
       registerMissedRound(reason: MissedReason.roundTimeout);
     });
   }
@@ -383,7 +466,9 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     );
     final int averageResponseMs = _responseTimesMs.isEmpty
         ? 0
-        : (_responseTimesMs.reduce((int a, int b) => a + b) / _responseTimesMs.length).round();
+        : (_responseTimesMs.reduce((int a, int b) => a + b) /
+                  _responseTimesMs.length)
+              .round();
     final int xp = _scoringService.calculateXp(
       wordsSolved: state.wordsSolved,
       bestCombo: state.bestCombo,
@@ -400,7 +485,10 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
       missedWords: state.missedWords,
       averageResponseTimeMs: averageResponseMs,
     );
-    return GameResult(stats: stats, replayGoal: _replayGoalService.buildGoal(stats));
+    return GameResult(
+      stats: stats,
+      replayGoal: _replayGoalService.buildGoal(stats),
+    );
   }
 
   @override
@@ -431,6 +519,80 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     _missedReasonCounts.updateAll((reason, count) => 0);
   }
 
+  BalloonOption? _optionForId(AntonymRound round, String answerId) {
+    for (final BalloonOption option in round.options) {
+      if (option.id == answerId) {
+        return option;
+      }
+    }
+    return null;
+  }
+
+  String _formatOptions(AntonymRound? round) {
+    if (round == null) return 'none';
+    return round.options
+        .map(
+          (BalloonOption option) =>
+              '${option.id}:${option.word}:${option.isCorrect}',
+        )
+        .join('|');
+  }
+
+  void _emitTapTelemetry({
+    required AntonymRound round,
+    required BalloonOption selected,
+    required RoundOutcome expectedOutcome,
+    required int scoreBefore,
+    required int scoreAfter,
+    required int comboBefore,
+    required int comboAfter,
+  }) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[AntonymTapTelemetry] '
+      'event=tap_resolved '
+      'roundId=${round.roundId} '
+      'target=${round.targetWord} '
+      'tappedOptionId=${selected.id} '
+      'tappedWord=${selected.word} '
+      'expectedCorrectWord=${round.correctAnswer} '
+      'tappedIsCorrect=${selected.isCorrect} '
+      'options=${_formatOptions(round)} '
+      'expectedOutcome=${expectedOutcome.name} '
+      'recordedOutcome=${state.lastOutcome?.name ?? "none"} '
+      'scoreBefore=$scoreBefore '
+      'scoreAfter=$scoreAfter '
+      'comboBefore=$comboBefore '
+      'comboAfter=$comboAfter '
+      'status=${state.status.name} '
+      'feedbackTransitionActive=${_nextRoundTimer?.isActive ?? false}',
+    );
+  }
+
+  void _emitIgnoredTapTelemetry({
+    required AntonymRound? round,
+    required String answerId,
+    required String reason,
+  }) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[AntonymTapTelemetry] '
+      'event=tap_ignored '
+      'reason=$reason '
+      'roundId=${round?.roundId ?? -1} '
+      'tappedOptionId=$answerId '
+      'target=${round?.targetWord ?? "none"} '
+      'expectedCorrectWord=${round?.correctAnswer ?? "none"} '
+      'options=${_formatOptions(round)} '
+      'status=${state.status.name} '
+      'lastOutcome=${state.lastOutcome?.name ?? "none"} '
+      'feedbackTransitionActive=${_nextRoundTimer?.isActive ?? false} '
+      'roundAnswered=${round?.answered ?? false} '
+      'roundResolved=${round == null ? false : _resolvedRoundIds.contains(round.roundId)} '
+      'ended=$_ended',
+    );
+  }
+
   void _emitTelemetry({
     required AntonymRound round,
     required String event,
@@ -443,7 +605,8 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
   }) {
     if (!kDebugMode) return;
     final _RoundTelemetry? t = _roundTelemetry[round.roundId];
-    final String msg = '[AntonymRoundTelemetry] '
+    final String msg =
+        '[AntonymRoundTelemetry] '
         'event=$event '
         'roundId=${round.roundId} '
         'target=${round.targetWord} '

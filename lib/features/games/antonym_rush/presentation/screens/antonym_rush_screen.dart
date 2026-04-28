@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -54,14 +55,17 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
     required AntonymRushState state,
     required AntonymRushCubit cubit,
   }) {
-    final List<BalloonOption> options = state.currentRound?.options ?? const <BalloonOption>[];
+    final List<BalloonOption> options =
+        state.currentRound?.options ?? const <BalloonOption>[];
     if (state.status != AntonymRushStatus.playing || options.isEmpty) {
       _deadframeGuardTimer?.cancel();
       _deadframeGuardTimer = null;
       return;
     }
 
-    final bool anyVisible = options.any((BalloonOption option) => _visibilityByOption[option.id] == true);
+    final bool anyVisible = options.any(
+      (BalloonOption option) => _visibilityByOption[option.id] == true,
+    );
     if (anyVisible) {
       _deadframeGuardTimer?.cancel();
       _deadframeGuardTimer = null;
@@ -71,10 +75,17 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
     _deadframeGuardTimer ??= Timer(const Duration(milliseconds: 1050), () {
       _deadframeGuardTimer = null;
       final AntonymRushState latest = cubit.state;
-      final List<BalloonOption> latestOptions = latest.currentRound?.options ?? const <BalloonOption>[];
-      final bool latestAnyVisible = latestOptions.any((BalloonOption option) => _visibilityByOption[option.id] == true);
-      if (latest.status == AntonymRushStatus.playing && latestOptions.isNotEmpty && !latestAnyVisible) {
-        debugPrint('[AntonymRushScreen] deadframe guard -> registerMissedRound');
+      final List<BalloonOption> latestOptions =
+          latest.currentRound?.options ?? const <BalloonOption>[];
+      final bool latestAnyVisible = latestOptions.any(
+        (BalloonOption option) => _visibilityByOption[option.id] == true,
+      );
+      if (latest.status == AntonymRushStatus.playing &&
+          latestOptions.isNotEmpty &&
+          !latestAnyVisible) {
+        debugPrint(
+          '[AntonymRushScreen] deadframe guard -> registerMissedRound',
+        );
         cubit.registerMissedRound(reason: MissedReason.watchdog);
       }
     });
@@ -94,8 +105,10 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
         builder: (BuildContext context, AntonymRushState state) {
           final AntonymRushCubit cubit = context.read<AntonymRushCubit>();
           final String target = state.currentRound?.targetWord ?? '...';
-          final List<BalloonOption> options = state.currentRound?.options ?? const <BalloonOption>[];
-          if (state.feedbackText != null && state.feedbackText != _latchedFeedbackText) {
+          final List<BalloonOption> options =
+              state.currentRound?.options ?? const <BalloonOption>[];
+          if (state.feedbackText != null &&
+              state.feedbackText != _latchedFeedbackText) {
             _feedbackLatchTimer?.cancel();
             _latchedFeedbackText = state.feedbackText;
             _latchedFeedbackOutcome = state.lastOutcome;
@@ -107,11 +120,15 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
               });
             });
           }
-          final String? visibleFeedbackText = state.feedbackText ?? _latchedFeedbackText;
-          final RoundOutcome? visibleFeedbackOutcome = state.feedbackText != null
+          final String? visibleFeedbackText =
+              state.feedbackText ?? _latchedFeedbackText;
+          final RoundOutcome? visibleFeedbackOutcome =
+              state.feedbackText != null
               ? state.lastOutcome
               : _latchedFeedbackOutcome;
-          _visibilityByOption.removeWhere((String key, bool value) => !options.any((o) => o.id == key));
+          _visibilityByOption.removeWhere(
+            (String key, bool value) => !options.any((o) => o.id == key),
+          );
           _evaluateDeadframeGuard(state: state, cubit: cubit);
           final bool urgent = state.timeLeft <= 10;
           return Scaffold(
@@ -164,7 +181,10 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                         top: 108,
                         left: 20,
                         right: 20,
-                        child: _TargetWordCard(promptLabel: widget.promptLabel, target: target),
+                        child: _TargetWordCard(
+                          promptLabel: widget.promptLabel,
+                          target: target,
+                        ),
                       ),
                       Positioned(
                         top: 240,
@@ -176,37 +196,62 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                           child: Stack(
                             children: <Widget>[
                               LayoutBuilder(
-                                builder: (BuildContext context, BoxConstraints constraints) {
-                                  return Stack(
-                                    children: options.asMap().entries.map((entry) {
-                                      final int index = entry.key;
-                                      final BalloonOption option = entry.value;
-                                      return _BalloonChoice(
-                                        key: ValueKey<String>(
-                                          '${state.currentRound?.roundId}-${option.id}',
-                                        ),
-                                        option: option,
-                                        roundId: state.currentRound?.roundId ?? 0,
-                                        laneIndex: index,
-                                        roundSpeedSeconds: state.currentSpeed,
-                                        escaped: state.escapedOptionIds.contains(option.id),
-                                        enabled: state.status == AntonymRushStatus.playing,
-                                        playfieldWidth: constraints.maxWidth,
-                                        playfieldHeight: constraints.maxHeight,
-                                        onTap: () => cubit.submitAnswer(option.id),
-                                        onEscaped: () => cubit.onBalloonEscaped(option.id),
-                                        onVisibilityChanged: (String id, bool visible) {
-                                          _onOptionVisibilityChanged(
-                                            id,
-                                            visible,
-                                            state: state,
-                                            cubit: cubit,
-                                          );
-                                        },
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      BoxConstraints constraints,
+                                    ) {
+                                      return Stack(
+                                        children: options
+                                            .asMap()
+                                            .entries
+                                            .map((entry) {
+                                              final int index = entry.key;
+                                              final BalloonOption option =
+                                                  entry.value;
+                                              return _BalloonChoice(
+                                                key: ValueKey<String>(
+                                                  '${state.currentRound?.roundId}-${option.id}',
+                                                ),
+                                                option: option,
+                                                roundId:
+                                                    state
+                                                        .currentRound
+                                                        ?.roundId ??
+                                                    0,
+                                                laneIndex: index,
+                                                roundSpeedSeconds:
+                                                    state.currentSpeed,
+                                                escaped: state.escapedOptionIds
+                                                    .contains(option.id),
+                                                enabled:
+                                                    state.status ==
+                                                    AntonymRushStatus.playing,
+                                                playfieldWidth:
+                                                    constraints.maxWidth,
+                                                playfieldHeight:
+                                                    constraints.maxHeight,
+                                                onTap: () => cubit.submitAnswer(
+                                                  option.id,
+                                                ),
+                                                onEscaped: () =>
+                                                    cubit.onBalloonEscaped(
+                                                      option.id,
+                                                    ),
+                                                onVisibilityChanged:
+                                                    (String id, bool visible) {
+                                                      _onOptionVisibilityChanged(
+                                                        id,
+                                                        visible,
+                                                        state: state,
+                                                        cubit: cubit,
+                                                      );
+                                                    },
+                                              );
+                                            })
+                                            .toList(growable: false),
                                       );
-                                    }).toList(growable: false),
-                                  );
-                                },
+                                    },
                               ),
                             ],
                           ),
@@ -220,42 +265,64 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                           child: IgnorePointer(
                             child: AnimatedSwitcher(
                               duration: const Duration(milliseconds: 260),
-                              reverseDuration: const Duration(milliseconds: 180),
-                              transitionBuilder: (Widget child, Animation<double> animation) {
-                                final Animation<double> slide = Tween<double>(
-                                  begin: 10,
-                                  end: 0,
-                                ).animate(animation);
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: AnimatedBuilder(
-                                    animation: animation,
-                                    builder: (BuildContext context, Widget? _) {
-                                      final double scale = 0.93 + (0.07 * animation.value);
-                                      return Transform.translate(
-                                        offset: Offset(0, -slide.value),
-                                        child: Transform.scale(scale: scale, child: child),
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
+                              reverseDuration: const Duration(
+                                milliseconds: 180,
+                              ),
+                              transitionBuilder:
+                                  (Widget child, Animation<double> animation) {
+                                    final Animation<double> slide =
+                                        Tween<double>(
+                                          begin: 10,
+                                          end: 0,
+                                        ).animate(animation);
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: AnimatedBuilder(
+                                        animation: animation,
+                                        builder:
+                                            (BuildContext context, Widget? _) {
+                                              final double scale =
+                                                  0.93 +
+                                                  (0.07 * animation.value);
+                                              return Transform.translate(
+                                                offset: Offset(0, -slide.value),
+                                                child: Transform.scale(
+                                                  scale: scale,
+                                                  child: child,
+                                                ),
+                                              );
+                                            },
+                                      ),
+                                    );
+                                  },
                               child: Container(
                                 key: ValueKey<String>(visibleFeedbackText),
                                 alignment: Alignment.center,
-                                constraints: const BoxConstraints(minHeight: 42),
-                                margin: const EdgeInsets.symmetric(horizontal: 82),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                constraints: const BoxConstraints(
+                                  minHeight: 42,
+                                ),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 82,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 9,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.surface.withValues(alpha: 0.9),
+                                  color: AppColors.surface.withValues(
+                                    alpha: 0.9,
+                                  ),
                                   borderRadius: BorderRadius.circular(999),
                                   border: Border.all(
-                                    color: (visibleFeedbackOutcome == RoundOutcome.wrong
-                                            ? AppColors.error
-                                            : visibleFeedbackOutcome == RoundOutcome.missed
+                                    color:
+                                        (visibleFeedbackOutcome ==
+                                                    RoundOutcome.wrong
+                                                ? AppColors.error
+                                                : visibleFeedbackOutcome ==
+                                                      RoundOutcome.missed
                                                 ? AppColors.reward
                                                 : AppColors.accent)
-                                        .withValues(alpha: 0.7),
+                                            .withValues(alpha: 0.7),
                                   ),
                                   boxShadow: const <BoxShadow>[
                                     BoxShadow(
@@ -267,12 +334,16 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                                 ),
                                 child: Text(
                                   visibleFeedbackText,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        color: visibleFeedbackOutcome == RoundOutcome.wrong
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color:
+                                            visibleFeedbackOutcome ==
+                                                RoundOutcome.wrong
                                             ? AppColors.error
-                                            : visibleFeedbackOutcome == RoundOutcome.missed
-                                                ? AppColors.reward
-                                                : AppColors.accent,
+                                            : visibleFeedbackOutcome ==
+                                                  RoundOutcome.missed
+                                            ? AppColors.reward
+                                            : AppColors.accent,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 24,
                                         letterSpacing: 0.2,
@@ -316,7 +387,9 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
                                   children: <Widget>[
                                     Text(
                                       'Paused',
-                                      style: Theme.of(context).textTheme.headlineSmall,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.headlineSmall,
                                     ),
                                     const SizedBox(height: 16),
                                     SizedBox(
@@ -393,9 +466,9 @@ class _BackgroundLetters extends StatelessWidget {
                   child: Text(
                     letters[index],
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontSize: 56,
-                          color: AppColors.textPrimary,
-                        ),
+                      fontSize: 56,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               );
@@ -408,10 +481,7 @@ class _BackgroundLetters extends StatelessWidget {
 }
 
 class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _CircleIconButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
@@ -434,10 +504,7 @@ class _CircleIconButton extends StatelessWidget {
 }
 
 class _TargetWordCard extends StatelessWidget {
-  const _TargetWordCard({
-    required this.promptLabel,
-    required this.target,
-  });
+  const _TargetWordCard({required this.promptLabel, required this.target});
 
   final String promptLabel;
   final String target;
@@ -484,25 +551,25 @@ class _TargetWordCard extends StatelessWidget {
             Text(
               promptLabel.toUpperCase(),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white70,
-                    letterSpacing: 1.1,
-                  ),
+                color: Colors.white70,
+                letterSpacing: 1.1,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               target,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontSize: 43,
-                    fontWeight: FontWeight.w700,
-                    shadows: const <Shadow>[
-                      Shadow(
-                        blurRadius: 10,
-                        color: Colors.black26,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                color: Colors.white,
+                fontSize: 43,
+                fontWeight: FontWeight.w700,
+                shadows: const <Shadow>[
+                  Shadow(
+                    blurRadius: 10,
+                    color: Colors.black26,
+                    offset: Offset(0, 2),
                   ),
+                ],
+              ),
             ),
           ],
         ),
@@ -554,9 +621,13 @@ class _BalloonChoiceState extends State<_BalloonChoice>
     <int>[3, 1, 2, 0],
   ];
   static const List<double> _laneAnchors = <double>[0.11, 0.34, 0.63, 0.86];
-  static const List<double> _verticalOffsets = <double>[-0.030, 0.008, -0.014, 0.022];
+  static const List<double> _verticalOffsets = <double>[
+    -0.030,
+    0.008,
+    -0.014,
+    0.022,
+  ];
   late final AnimationController _controller;
-  bool _escapeNotified = false;
   bool _lastVisible = false;
 
   @override
@@ -564,15 +635,20 @@ class _BalloonChoiceState extends State<_BalloonChoice>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (widget.roundSpeedSeconds * 1000).round()),
-    )..addStatusListener((AnimationStatus status) {
-        if (status == AnimationStatus.completed && !_escapeNotified && !widget.escaped) {
-          _escapeNotified = true;
-          widget.onEscaped();
-        }
-      });
+      duration: Duration(
+        milliseconds: (widget.roundSpeedSeconds * 1000).round(),
+      ),
+    )..addStatusListener(_onMainStatusChanged);
     if (widget.enabled && !widget.escaped) {
       _controller.forward();
+    }
+  }
+
+  void _onMainStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed &&
+        widget.enabled &&
+        !widget.escaped) {
+      widget.onEscaped();
     }
   }
 
@@ -580,10 +656,11 @@ class _BalloonChoiceState extends State<_BalloonChoice>
   void didUpdateWidget(covariant _BalloonChoice oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.option.id != widget.option.id) {
-      _escapeNotified = false;
       _lastVisible = false;
       _controller
-        ..duration = Duration(milliseconds: (widget.roundSpeedSeconds * 1000).round())
+        ..duration = Duration(
+          milliseconds: (widget.roundSpeedSeconds * 1000).round(),
+        )
         ..reset();
       if (widget.enabled && !widget.escaped) {
         _controller.forward();
@@ -594,7 +671,9 @@ class _BalloonChoiceState extends State<_BalloonChoice>
       _controller.stop();
       return;
     }
-    if (widget.enabled && !_controller.isAnimating) {
+    if (widget.enabled &&
+        !_controller.isAnimating &&
+        _controller.status != AnimationStatus.completed) {
       _controller.forward();
     } else if (!widget.enabled && _controller.isAnimating) {
       _controller.stop(canceled: false);
@@ -609,26 +688,40 @@ class _BalloonChoiceState extends State<_BalloonChoice>
 
   @override
   Widget build(BuildContext context) {
-    final List<int> lanePattern = _lanePatterns[widget.roundId % _lanePatterns.length];
+    final List<int> lanePattern =
+        _lanePatterns[widget.roundId % _lanePatterns.length];
     final int laneSlot = lanePattern[widget.laneIndex % lanePattern.length];
-    final double laneJitter = (((widget.roundId * 11) + (widget.laneIndex * 17)) % 9 - 4) * 0.003;
+    final double laneJitter =
+        (((widget.roundId * 11) + (widget.laneIndex * 17)) % 9 - 4) * 0.003;
     final double lane = (_laneAnchors[laneSlot] + laneJitter).clamp(0.08, 0.90);
-    final double verticalJitter = (((widget.roundId * 13) + (widget.laneIndex * 19)) % 7 - 3) * 0.006;
-    final double verticalOffset = (_verticalOffsets[laneSlot] + verticalJitter).clamp(-0.045, 0.035);
+    final double verticalJitter =
+        (((widget.roundId * 13) + (widget.laneIndex * 19)) % 7 - 3) * 0.006;
+    final double verticalOffset = (_verticalOffsets[laneSlot] + verticalJitter)
+        .clamp(-0.045, 0.035);
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {
-        final double topFactor = (0.78 + (verticalOffset * 0.55)) + (-0.56 * _controller.value);
-        final double left = (widget.playfieldWidth * lane).clamp(
-          12 + (_balloonWidth / 2),
-          widget.playfieldWidth - 12 - (_balloonWidth / 2),
-        ) - (_balloonWidth / 2);
-        final double top = (widget.playfieldHeight * topFactor).clamp(
-          16,
-          widget.playfieldHeight - _balloonHeight - 12,
-        );
+        final double left =
+            (widget.playfieldWidth * lane).clamp(
+              12 + (_balloonWidth / 2),
+              widget.playfieldWidth - 12 - (_balloonWidth / 2),
+            ) -
+            (_balloonWidth / 2);
+        const double escapeTop = 16;
+        final double spawnTop =
+            widget.playfieldHeight -
+            _balloonHeight -
+            12 +
+            (widget.playfieldHeight * verticalOffset);
+        final double top = lerpDouble(
+          spawnTop,
+          escapeTop,
+          _controller.value,
+        )!.clamp(escapeTop, widget.playfieldHeight - _balloonHeight - 12);
         final bool isVisible =
-            !widget.escaped && top < (widget.playfieldHeight - 6) && (top + _balloonHeight) > 6;
+            !widget.escaped &&
+            top < (widget.playfieldHeight - 6) &&
+            (top + _balloonHeight) > 6;
         if (isVisible != _lastVisible) {
           _lastVisible = isVisible;
           widget.onVisibilityChanged(widget.option.id, isVisible);
@@ -636,13 +729,11 @@ class _BalloonChoiceState extends State<_BalloonChoice>
         return Positioned(
           left: left,
           top: top,
-          child: Opacity(
-            opacity: widget.escaped ? 0 : 1,
-            child: child,
-          ),
+          child: Opacity(opacity: widget.escaped ? 0 : 1, child: child),
         );
       },
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: widget.enabled && !widget.escaped ? widget.onTap : null,
         child: SizedBox(
           width: _balloonWidth,
@@ -657,13 +748,20 @@ class _BalloonChoiceState extends State<_BalloonChoice>
                   duration: const Duration(milliseconds: 200),
                   width: 98,
                   height: 116,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     gradient: _balloonGradient(widget.option.word),
-                    borderRadius: const BorderRadius.all(Radius.elliptical(56, 64)),
+                    borderRadius: const BorderRadius.all(
+                      Radius.elliptical(56, 64),
+                    ),
                     boxShadow: <BoxShadow>[
                       BoxShadow(
-                        color: _balloonColor(widget.option.word).withValues(alpha: 0.5),
+                        color: _balloonColor(
+                          widget.option.word,
+                        ).withValues(alpha: 0.5),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -677,11 +775,11 @@ class _BalloonChoiceState extends State<_BalloonChoice>
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontSize: _fontSizeForWord(widget.option.word),
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            height: 1.0,
-                          ),
+                        fontSize: _fontSizeForWord(widget.option.word),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        height: 1.0,
+                      ),
                     ),
                   ),
                 ),

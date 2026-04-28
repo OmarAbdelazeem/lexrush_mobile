@@ -7,13 +7,21 @@ class AntonymPair extends Equatable {
     required this.antonym,
     required this.distractors,
     required this.difficulty,
+    this.beginnerSafe = false,
   });
 
   final String word;
   final String antonym;
   final List<String> distractors;
   final AntonymDifficulty difficulty;
+  final bool beginnerSafe;
 
   @override
-  List<Object> get props => <Object>[word, antonym, distractors, difficulty];
+  List<Object> get props => <Object>[
+    word,
+    antonym,
+    distractors,
+    difficulty,
+    beginnerSafe,
+  ];
 }

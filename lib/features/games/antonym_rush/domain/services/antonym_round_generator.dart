@@ -19,27 +19,30 @@ class AntonymRoundGenerator {
   final AntonymDifficultyService difficultyService;
   final Random _random;
   List<int> _queue = <int>[];
+  List<int> _beginnerQueue = <int>[];
   int _roundId = 0;
   int _optionId = 0;
+  static const int _beginnerRoundCount = 5;
 
   void reset() {
     debugPrint('[AntonymRoundGenerator] reset');
     _queue = <int>[];
+    _beginnerQueue = <int>[];
     _roundId = 0;
     _optionId = 0;
   }
 
-  AntonymRound generate({
-    required int timeLeft,
-    required int wordsSolved,
-  }) {
+  AntonymRound generate({required int timeLeft, required int wordsSolved}) {
+    final int nextRoundId = _roundId + 1;
+    final bool beginnerRound = nextRoundId <= _beginnerRoundCount;
     final phase = difficultyService.phaseForTimeLeft(timeLeft);
-    final AntonymPair pair = _nextPair(
-      phase: phase,
-      timeLeft: timeLeft,
-      wordsSolved: wordsSolved,
-    );
-    final List<String> answers = <String>[pair.antonym, ...pair.distractors]..shuffle(_random);
+    final AntonymPair pair = beginnerRound
+        ? _nextBeginnerPair()
+        : _nextPair(phase: phase, timeLeft: timeLeft, wordsSolved: wordsSolved);
+    final List<String> distractors = <String>[...pair.distractors]
+      ..shuffle(_random);
+    final List<String> answers = <String>[pair.antonym, ...distractors.take(3)]
+      ..shuffle(_random);
     final List<BalloonOption> options = answers
         .map(
           (String answer) => BalloonOption(
@@ -50,15 +53,36 @@ class AntonymRoundGenerator {
         )
         .toList(growable: false);
     final AntonymRound round = AntonymRound(
-      roundId: ++_roundId,
+      roundId: nextRoundId,
       targetWord: pair.word,
       correctAnswer: pair.antonym,
       pairDifficulty: pair.difficulty,
       options: options,
       startedAt: DateTime.now(),
     );
-    debugPrint('[AntonymRoundGenerator] round=${round.roundId} word=${pair.word} phase=$phase');
+    _roundId = nextRoundId;
+    debugPrint(
+      '[AntonymRoundGenerator] round=${round.roundId} word=${pair.word} phase=$phase',
+    );
     return round;
+  }
+
+  AntonymPair _nextBeginnerPair() {
+    final beginnerIndices = pairs
+        .asMap()
+        .entries
+        .where((entry) => entry.value.beginnerSafe)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    if (beginnerIndices.isEmpty) {
+      throw StateError(
+        'AntonymRoundGenerator requires at least one beginnerSafe pair',
+      );
+    }
+    if (_beginnerQueue.isEmpty) {
+      _beginnerQueue = <int>[...beginnerIndices]..shuffle(_random);
+    }
+    return pairs[_beginnerQueue.removeAt(0)];
   }
 
   AntonymPair _nextPair({
@@ -67,9 +91,13 @@ class AntonymRoundGenerator {
     required int wordsSolved,
   }) {
     final allowed = difficultyService.allowedForPhase(phase);
-    List<AntonymDifficulty> preferred = difficultyService.preferredForPhase(phase);
+    List<AntonymDifficulty> preferred = difficultyService.preferredForPhase(
+      phase,
+    );
     if (timeLeft > 15) {
-      preferred = preferred.where((d) => d != AntonymDifficulty.hard).toList(growable: false);
+      preferred = preferred
+          .where((d) => d != AntonymDifficulty.hard)
+          .toList(growable: false);
     }
     if (wordsSolved < 5) {
       preferred = const <AntonymDifficulty>[
@@ -80,7 +108,8 @@ class AntonymRoundGenerator {
       ];
     }
     if (_queue.isEmpty) {
-      _queue = List<int>.generate(pairs.length, (int index) => index)..shuffle(_random);
+      _queue = List<int>.generate(pairs.length, (int index) => index)
+        ..shuffle(_random);
     }
     final preferredDifficulty = preferred[_random.nextInt(preferred.length)];
     final allowedIndices = pairs
@@ -95,8 +124,12 @@ class AntonymRoundGenerator {
         .where((entry) => entry.value.difficulty == preferredDifficulty)
         .map((entry) => entry.key)
         .toSet();
-    final eligible = preferredIndices.isNotEmpty ? preferredIndices : allowedIndices;
-    final int queueIndex = _queue.indexWhere((int idx) => eligible.contains(idx));
+    final eligible = preferredIndices.isNotEmpty
+        ? preferredIndices
+        : allowedIndices;
+    final int queueIndex = _queue.indexWhere(
+      (int idx) => eligible.contains(idx),
+    );
     if (queueIndex >= 0) {
       final int selected = _queue.removeAt(queueIndex);
       return pairs[selected];
