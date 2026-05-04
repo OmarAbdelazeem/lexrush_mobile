@@ -9,6 +9,8 @@ abstract final class GameModeCodec {
         return 'synonym-storm';
       case GameMode.definitionMatch:
         return 'definition-match';
+      case GameMode.association:
+        return 'association';
     }
   }
 
@@ -20,6 +22,8 @@ abstract final class GameModeCodec {
         return GameMode.synonymStorm;
       case 'definition-match':
         return GameMode.definitionMatch;
+      case 'association':
+        return GameMode.association;
       default:
         return null;
     }

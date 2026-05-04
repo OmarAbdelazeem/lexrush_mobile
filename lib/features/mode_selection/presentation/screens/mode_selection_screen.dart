@@ -35,16 +35,18 @@ class ModeSelectionScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Sharpen speed. Master words.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.accent,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppColors.accent),
             ),
             const SizedBox(height: 20),
             ...games.asMap().entries.map((MapEntry<int, GameDefinition> entry) {
               final int index = entry.key;
               final GameDefinition game = entry.value;
               return Padding(
-                padding: EdgeInsets.only(bottom: index == games.length - 1 ? 0 : 12),
+                padding: EdgeInsets.only(
+                  bottom: index == games.length - 1 ? 0 : 12,
+                ),
                 child: _ModeCard(
                   title: game.title,
                   subtitle: game.description,
@@ -53,8 +55,12 @@ class ModeSelectionScreen extends StatelessWidget {
                   isAvailable: !game.isLocked,
                   onTap: !game.isLocked
                       ? () {
-                          debugPrint('[ModeSelectionScreen] selected mode=${game.id}');
-                          context.go('${AppRoutes.preGame}/${GameModeCodec.toPath(game.mode)}');
+                          debugPrint(
+                            '[ModeSelectionScreen] selected mode=${game.id}',
+                          );
+                          context.go(
+                            '${AppRoutes.preGame}/${GameModeCodec.toPath(game.mode)}',
+                          );
                         }
                       : null,
                 ),
@@ -75,6 +81,8 @@ class ModeSelectionScreen extends StatelessWidget {
         return Icons.auto_awesome_rounded;
       case GameMode.definitionMatch:
         return Icons.menu_book_rounded;
+      case GameMode.association:
+        return Icons.hub_rounded;
     }
   }
 
@@ -86,6 +94,8 @@ class ModeSelectionScreen extends StatelessWidget {
         return AppColors.accent;
       case GameMode.definitionMatch:
         return AppColors.reward;
+      case GameMode.association:
+        return AppColors.primary;
     }
   }
 }
@@ -151,9 +161,15 @@ class _ModeCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(title, style: Theme.of(context).textTheme.titleLarge),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                       const SizedBox(height: 2),
-                      Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ],
                   ),
                 ),

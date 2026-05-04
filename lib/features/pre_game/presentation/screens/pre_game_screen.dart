@@ -7,10 +7,7 @@ import 'package:lexrush/shared/domain/entities/game_mode.dart';
 import 'package:lexrush/shared/domain/entities/game_mode_codec.dart';
 
 class PreGameScreen extends StatefulWidget {
-  const PreGameScreen({
-    required this.mode,
-    super.key,
-  });
+  const PreGameScreen({required this.mode, super.key});
 
   final GameMode mode;
 
@@ -84,14 +81,23 @@ class _PreGameScreenState extends State<PreGameScreen> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.local_fire_department, color: Colors.white),
+                  child: const Icon(
+                    Icons.local_fire_department,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(_titleForMode(widget.mode), style: Theme.of(context).textTheme.titleLarge),
-                    Text('60 seconds • Fast focus', style: Theme.of(context).textTheme.bodyMedium),
+                    Text(
+                      _titleForMode(widget.mode),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Text(
+                      '60 seconds • Fast focus',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ],
                 ),
               ],
@@ -105,17 +111,28 @@ class _PreGameScreenState extends State<PreGameScreen> {
                       key: const ValueKey<String>('ready'),
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Text('Ready?', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 56)),
+                        Text(
+                          'Ready?',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.headlineSmall?.copyWith(fontSize: 56),
+                        ),
                         const SizedBox(height: 8),
-                        Text('Get set to react fast', style: Theme.of(context).textTheme.bodyLarge),
+                        Text(
+                          'Get set to react fast',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
                       ],
                     )
                   : Text(
                       _countdown == 0 ? 'GO' : '${_countdown ?? ''}',
                       key: ValueKey<int?>(_countdown),
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
                             fontSize: 120,
-                            color: _countdown == 0 ? AppColors.accent : AppColors.textPrimary,
+                            color: _countdown == 0
+                                ? AppColors.accent
+                                : AppColors.textPrimary,
                           ),
                     ),
             ),
@@ -133,6 +150,8 @@ class _PreGameScreenState extends State<PreGameScreen> {
         return 'Synonym Storm';
       case GameMode.definitionMatch:
         return 'Definition Match';
+      case GameMode.association:
+        return 'Association';
     }
   }
 }

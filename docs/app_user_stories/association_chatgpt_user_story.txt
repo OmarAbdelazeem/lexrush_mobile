@@ -1,0 +1,567 @@
+This game is a semantic association / word meaning matching game. The player sees a target word at the top and two candidate words at the bottom. They must tap the word that has the closest meaning or association to the target word.
+
+It is different from Antonym Rush and Agility because it is more about word relationship recognition than movement or fast object tracking.
+
+Game: Association
+Core idea
+
+The player sees a target word and must choose which of two words is most closely associated with it.
+
+Example from the video:
+
+attack
+
+accuse ✅
+trick ❌
+
+Another:
+
+dupe
+
+trick ✅
+accuse ❌
+
+Another:
+
+mislead
+
+trick ✅
+accuse ❌
+
+Another:
+
+con
+
+trick ✅
+accuse ❌
+
+When the player chooses correctly, the selected node glows and the game advances. When wrong, the selected answer is marked incorrect, and the game shows a short explanation.
+
+Complete User Story
+
+As a player, I want to quickly identify which word is most closely associated with the target word, so that I can improve vocabulary, semantic reasoning, and fast word association skills.
+
+Gameplay Summary
+
+Each round shows:
+
+one target word at the top
+two possible associated words at the bottom
+a simple branching line/graph connecting the target to the two options
+a timer
+score
+feedback after correct/wrong selection
+
+The player must tap the matching word.
+
+Core Game Loop
+Start game.
+Show target word.
+Show two answer choices.
+Player taps one choice.
+Game checks if selected answer is the correct association.
+If correct:
+selected node glows
+score increases
+streak/combo may increase
+next round appears quickly
+If wrong:
+selected node shows wrong marker
+correct explanation appears
+time penalty may apply
+player taps to continue
+Continue until the timer ends.
+Show results/review screen.
+Screen Layout
+Top HUD
+
+Show:
+
+Score                     Timer
+
+Example from the video:
+
+1201                      1:14
+
+You may also show pause/settings if needed.
+
+Main word area
+
+Centered target word:
+
+attack
+
+Large, white, readable.
+
+Association graph
+
+Below the target word, show a simple branching structure:
+
+        attack
+          ●
+        /   \
+       /     \
+      ●       ●
+   accuse   trick
+
+The target node is at the top. The two answer nodes are at the bottom.
+
+Instruction
+
+At the bottom:
+
+TAP THE MATCHING VERB
+
+or more generally:
+
+TAP THE MATCHING WORD
+
+For LexRush, I recommend:
+
+Tap the closest match
+
+That is clearer and supports nouns, verbs, adjectives, and phrases.
+
+Interaction
+Primary input
+
+The player taps one of the two bottom answer nodes/cards.
+
+Tap area should include:
+
+the node circle
+the answer label
+nearby touch area
+
+Do not make only the text tappable.
+
+Correct Answer Behavior
+
+When the player taps the correct option:
+
+selected bottom node glows cyan/pink
+line from target node to selected node lights up
+small pulse animation appears
+score increases
+next round loads after a short delay
+
+Possible feedback:
+
++100
+
+or no text, just glow and score.
+
+Wrong Answer Behavior
+
+When the player taps the wrong option:
+
+selected node shows an X or red highlight
+correct answer may glow
+explanation appears
+
+Example from video:
+
+Con means to persuade
+through deception.
+
+Then:
+
+TAP TO CONTINUE
+
+The game waits for the user to tap before moving on.
+
+This is important because it turns wrong answers into learning moments.
+
+Missed Behavior
+
+If the player does not answer in time:
+
+show Missed!
+highlight the correct answer
+optionally show the explanation
+apply time penalty or simply continue
+
+For LexRush, since your other games are timed, I recommend:
+
+Missed: -2s after beginner rounds
+Wrong: -3s
+Correct: +100
+
+But this can be tuned later.
+
+Game Duration
+
+Use your LexRush standard:
+
+60-second session
+
+This keeps all mini-games consistent.
+
+Scoring
+
+Recommended LexRush scoring:
+
+Correct answer: +100
+Fast answer bonus: optional +25 to +50
+Wrong answer: 0, -3s
+Missed answer: 0, -2s
+Combo bonus: optional every 3 correct answers
+
+For MVP, keep it simple:
+
+Correct = +100
+Wrong = -3 seconds
+Missed = -2 seconds
+Difficulty Progression
+Beginner phase
+
+Use obvious associations.
+
+Examples:
+
+dupe → trick
+happy → joyful
+small → tiny
+angry → mad
+clean → neat
+
+Wrong options should be clearly unrelated.
+
+Medium phase
+
+Use closer distractors.
+
+Examples:
+
+attack → accuse / trick
+fault → accuse / trick
+mislead → trick / accuse
+
+The user has to think more carefully.
+
+Hard phase
+
+Use nuanced word senses.
+
+Examples:
+
+charge → accuse / price
+appeal → request / decorate
+sound → healthy / noise
+light → bright / not heavy
+
+This is where the game becomes powerful because one word may have multiple meanings.
+
+Beginner Ramp
+
+For first-time players, use the first 5 rounds as teaching rounds:
+
+only easy words
+obvious correct association
+slower timer pressure
+no missed penalty
+show clear instruction
+
+Example first rounds:
+
+happy → joyful / broken
+fast → quick / dirty
+small → tiny / loud
+angry → mad / clean
+cold → chilly / bright
+Data Model
+
+Use a structure like this:
+
+class AssociationPrompt {
+  final String targetWord;
+  final String correctAnswer;
+  final String wrongAnswer;
+  final String explanation;
+  final AssociationType type;
+  final DifficultyTier difficulty;
+  final bool beginnerSafe;
+
+  const AssociationPrompt({
+    required this.targetWord,
+    required this.correctAnswer,
+    required this.wrongAnswer,
+    required this.explanation,
+    required this.type,
+    required this.difficulty,
+    this.beginnerSafe = false,
+  });
+}
+
+Example:
+
+AssociationPrompt(
+  targetWord: 'con',
+  correctAnswer: 'trick',
+  wrongAnswer: 'accuse',
+  explanation: 'Con means to persuade through deception.',
+  type: AssociationType.verbMatch,
+  difficulty: DifficultyTier.medium,
+  beginnerSafe: false,
+)
+Prompt Types
+
+The original video says:
+
+TAP THE MATCHING VERB
+
+So the game appears to focus on verbs.
+
+For LexRush, support multiple prompt types later:
+
+enum AssociationType {
+  verbMatch,
+  synonymMatch,
+  meaningMatch,
+  phraseMatch,
+}
+MVP type
+
+Start with:
+
+target word → closest matching word
+
+This is broad and easier to scale.
+
+Round Result Model
+
+Track each round for review/results:
+
+class AssociationRoundResult {
+  final String targetWord;
+  final String correctAnswer;
+  final String selectedAnswer;
+  final String explanation;
+  final bool wasCorrect;
+  final Duration responseTime;
+}
+Game States
+idle
+ready
+playing
+correctFeedback
+wrongFeedback
+missedFeedback
+paused
+completed
+review
+Results Screen
+
+Show:
+
+final score
+accuracy
+best combo
+words solved
+wrong answers
+missed answers
+average response time
+XP earned
+review list
+
+Review list should include:
+
+Incorrect
+con
+Con means to persuade through deception.
+
+Correct
+dupe
+Dupe means to trick or deceive.
+
+This review screen is important because Association is a learning game, not just a reflex game.
+
+Visual Style for LexRush
+
+Do not copy the exact Elevate look. Clone the mechanic, not the art.
+
+Use LexRush style:
+
+dark navy/purple gradient
+glowing nodes
+thin neon connector lines
+cyan/pink/gold feedback
+soft particle background
+rounded premium UI
+clear readable typography
+
+Original visual direction:
+
+LexRush Association = neural word-link graph
+
+Instead of copying the original exactly, make it feel like the player is activating connections in a vocabulary network.
+
+Suggested Flutter Architecture
+
+Since your app uses clean architecture + BLoC/Cubit:
+
+features/
+  games/
+    association/
+      domain/
+        entities/
+          association_prompt.dart
+          association_round.dart
+          association_round_result.dart
+          association_game_stats.dart
+        services/
+          association_round_generator.dart
+          association_difficulty_service.dart
+
+      data/
+        association_prompts.dart
+
+      application/
+        cubit/
+          association_cubit.dart
+          association_state.dart
+
+      presentation/
+        screens/
+          association_screen.dart
+          association_results_screen.dart
+        widgets/
+          association_graph.dart
+          association_node.dart
+          association_option_node.dart
+          association_feedback.dart
+Cubit Responsibilities
+
+AssociationCubit owns:
+
+current prompt
+answer options
+score
+timer
+combo/streak
+selected answer
+feedback state
+explanation display
+round history
+result stats
+next round timing
+pause/resume
+end game
+
+UI should only:
+
+render state
+forward taps
+show animations
+MVP Implementation Plan
+Step 1 — Static game screen
+
+Build:
+
+target word
+two options
+graph lines
+timer/score
+instruction
+Step 2 — Tap-based gameplay
+
+Add:
+
+answer tap
+correct/wrong logic
+score update
+timer
+next round
+Step 3 — Feedback
+
+Add:
+
+glowing correct path
+red wrong node
+explanation message
+tap to continue after wrong answer
+Step 4 — Difficulty
+
+Add:
+
+beginnerSafe prompts
+easy/medium/hard phases
+harder distractors later
+Step 5 — Results/review
+
+Add:
+
+score
+accuracy
+review of correct/incorrect answers
+play again
+Acceptance Criteria
+Gameplay
+Player can start Association from mode selection.
+Game shows one target word and two answer options.
+Player can tap an answer.
+Correct answer increases score.
+Wrong answer shows explanation.
+Timer ends session.
+Results screen shows performance and review.
+Visual
+Target word is readable.
+Answer nodes are tappable.
+Graph lines clearly connect target to options.
+Correct path glows.
+Wrong option clearly shows error.
+Feedback does not block core gameplay.
+Learning
+Wrong answers explain the word.
+Review screen helps the user remember.
+Early rounds are simple.
+Later rounds become more nuanced.
+Short prompt for Flutter agent
+
+Create a new LexRush mini-game called Association.
+
+Association is a vocabulary association game. The player sees one target word and two possible matching words. They must tap the word most closely associated with the target.
+
+Do not copy Elevate assets or exact visuals. Use the existing LexRush dark premium visual style.
+
+Gameplay:
+
+60-second session
+show target word at top/center
+show two answer nodes at bottom
+draw thin glowing connector lines from the target node to both answer nodes
+player taps one answer node
+correct answer: selected node/path glows, +100 score, combo increases, next round loads quickly
+wrong answer: selected node shows red/X, correct answer may glow, show explanation text, combo resets, optional -3s penalty, user taps to continue
+missed answer: show Missed!, optional -2s penalty, then continue
+results screen shows score, accuracy, best combo, words solved, wrong/missed count, average response time, XP, and review of correct/incorrect words
+
+Architecture:
+
+Use clean architecture and BLoC/Cubit
+Add feature folder: features/games/association
+Cubit owns timer, current prompt, options, scoring, combo, feedback, explanation, round history, and results
+UI only renders state and forwards taps
+Use beginnerSafe prompts for first rounds
+Use easy/medium/hard difficulty tiers
+
+Visual direction:
+
+neural word-link graph
+dark navy/purple background
+glowing nodes
+thin neon connector lines
+cyan/gold correct feedback
+coral red wrong feedback
+premium LexRush style
+Final Recommendation
+
+Build Association directly in Flutter, not Figma first.
+
+This game is simple enough visually, and the real value is in:
+
+answer logic
+word data
+explanation review
+feedback timing
+difficulty tuning

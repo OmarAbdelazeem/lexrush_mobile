@@ -24,5 +24,12 @@ abstract final class GameCatalog {
       description: 'Choose the best definition',
       category: 'Vocabulary',
     ),
+    GameDefinition(
+      id: 'association',
+      mode: GameMode.association,
+      title: 'Association',
+      description: 'Link related words',
+      category: 'Vocabulary',
+    ),
   ];
 }
