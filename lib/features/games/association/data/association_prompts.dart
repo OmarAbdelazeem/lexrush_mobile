@@ -142,9 +142,10 @@ const List<AssociationPrompt> associationPrompts = <AssociationPrompt>[
     targetWord: 'attack',
     correctAnswer: 'accuse',
     wrongAnswer: 'trick',
-    explanation: 'To attack someone with blame can mean to accuse them.',
+    explanation: 'To attack someone with words can mean to accuse them.',
     type: AssociationType.meaningMatch,
-    difficulty: AssociationDifficulty.medium,
+    difficulty: AssociationDifficulty.hard,
+    contextHint: 'with words',
   ),
   AssociationPrompt(
     targetWord: 'dupe',
@@ -184,7 +185,8 @@ const List<AssociationPrompt> associationPrompts = <AssociationPrompt>[
     wrongAnswer: 'delay',
     explanation: 'Assist means to help.',
     type: AssociationType.verbMatch,
-    difficulty: AssociationDifficulty.medium,
+    difficulty: AssociationDifficulty.easy,
+    beginnerSafe: true,
   ),
   AssociationPrompt(
     targetWord: 'purchase',

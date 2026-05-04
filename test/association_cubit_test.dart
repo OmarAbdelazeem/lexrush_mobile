@@ -12,6 +12,75 @@ import 'package:lexrush/features/games/association/domain/services/association_d
 import 'package:lexrush/features/games/association/domain/services/association_round_generator.dart';
 
 void main() {
+  group('AssociationDifficultyService', () {
+    const AssociationDifficultyService service = AssociationDifficultyService();
+
+    test('first 5 rounds always return easy', () {
+      for (int id = 1; id <= 5; id += 1) {
+        expect(
+          service.difficultyFor(
+            nextRoundId: id,
+            secondsLeft: 20,
+            wordsSolved: 99,
+          ),
+          AssociationDifficulty.easy,
+        );
+      }
+    });
+
+    test(
+      'first 20 seconds (secondsLeft >= 40) stays easy regardless of wordsSolved',
+      () {
+        for (int seconds = 60; seconds >= 40; seconds -= 1) {
+          for (final int wordsSolved in <int>[0, 5, 10, 25]) {
+            expect(
+              service.difficultyFor(
+                nextRoundId: 6,
+                secondsLeft: seconds,
+                wordsSolved: wordsSolved,
+              ),
+              AssociationDifficulty.easy,
+              reason:
+                  'secondsLeft=$seconds wordsSolved=$wordsSolved should be easy',
+            );
+          }
+        }
+      },
+    );
+
+    test('mid window can return medium when threshold met', () {
+      expect(
+        service.difficultyFor(
+          nextRoundId: 6,
+          secondsLeft: 35,
+          wordsSolved: 12,
+        ),
+        AssociationDifficulty.medium,
+      );
+      expect(
+        service.difficultyFor(
+          nextRoundId: 6,
+          secondsLeft: 25,
+          wordsSolved: 0,
+        ),
+        AssociationDifficulty.medium,
+      );
+    });
+
+    test('hard window stays hard at 15 seconds and below', () {
+      for (final int seconds in <int>[15, 10, 5, 1]) {
+        expect(
+          service.difficultyFor(
+            nextRoundId: 6,
+            secondsLeft: seconds,
+            wordsSolved: 0,
+          ),
+          AssociationDifficulty.hard,
+        );
+      }
+    });
+  });
+
   group('AssociationRoundGenerator', () {
     test('returns exactly 2 options and exactly 1 correct option', () {
       final AssociationRoundGenerator generator = AssociationRoundGenerator(

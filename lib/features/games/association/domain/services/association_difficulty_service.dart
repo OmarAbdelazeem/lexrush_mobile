@@ -17,11 +17,19 @@ class AssociationDifficultyService {
     if (secondsLeft <= hardPhaseSeconds) {
       return AssociationDifficulty.hard;
     }
-    if (wordsSolved >= 10 || secondsLeft <= 35) {
+    if (secondsLeft >= _easyFloorSeconds) {
+      return AssociationDifficulty.easy;
+    }
+    if (wordsSolved >= _mediumWordsThreshold ||
+        secondsLeft <= _mediumWindowSeconds) {
       return AssociationDifficulty.medium;
     }
     return AssociationDifficulty.easy;
   }
+
+  static const int _easyFloorSeconds = 40;
+  static const int _mediumWindowSeconds = 30;
+  static const int _mediumWordsThreshold = 10;
 
   Duration roundWindowFor({
     required int nextRoundId,
