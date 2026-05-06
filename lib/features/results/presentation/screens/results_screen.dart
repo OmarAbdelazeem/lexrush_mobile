@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_game_result.dart';
 import 'package:lexrush/features/games/association/presentation/screens/association_results_screen.dart';
+import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_game_result.dart';
+import 'package:lexrush/features/games/sequencing_memory/presentation/screens/sequencing_memory_results_screen.dart';
 import 'package:lexrush/shared/domain/entities/game_mode.dart';
 import 'package:lexrush/shared/domain/entities/game_mode_codec.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
@@ -20,6 +22,16 @@ class ResultsScreen extends StatelessWidget {
         result: extra,
         onPlayAgain: () => context.go(
           '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.association)}',
+        ),
+        onBackToModes: () => context.go(AppRoutes.modeSelection),
+      );
+    }
+    if (extra is SequencingGameResult) {
+      debugPrint('[ResultsScreen] rendering sequencing-memory-result');
+      return SequencingMemoryResultsScreen(
+        result: extra,
+        onPlayAgain: () => context.go(
+          '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.sequencingMemory)}',
         ),
         onBackToModes: () => context.go(AppRoutes.modeSelection),
       );

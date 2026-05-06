@@ -95,7 +95,7 @@ class _PreGameScreenState extends State<PreGameScreen> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     Text(
-                      '60 seconds • Fast focus',
+                      _subtitleForMode(widget.mode),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -152,6 +152,20 @@ class _PreGameScreenState extends State<PreGameScreen> {
         return 'Definition Match';
       case GameMode.association:
         return 'Association';
+      case GameMode.sequencingMemory:
+        return 'Sequencing Memory';
+    }
+  }
+
+  String _subtitleForMode(GameMode mode) {
+    switch (mode) {
+      case GameMode.sequencingMemory:
+        return '3 routes • Memory recall';
+      case GameMode.antonymRush:
+      case GameMode.synonymStorm:
+      case GameMode.definitionMatch:
+      case GameMode.association:
+        return '60 seconds • Fast focus';
     }
   }
 }

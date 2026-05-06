@@ -83,6 +83,8 @@ class ModeSelectionScreen extends StatelessWidget {
         return Icons.menu_book_rounded;
       case GameMode.association:
         return Icons.hub_rounded;
+      case GameMode.sequencingMemory:
+        return Icons.route_rounded;
     }
   }
 
@@ -96,6 +98,8 @@ class ModeSelectionScreen extends StatelessWidget {
         return AppColors.reward;
       case GameMode.association:
         return AppColors.primary;
+      case GameMode.sequencingMemory:
+        return AppColors.accent;
     }
   }
 }

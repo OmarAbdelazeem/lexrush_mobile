@@ -1,1 +1,7 @@
-enum GameMode { antonymRush, synonymStorm, definitionMatch, association }
+enum GameMode {
+  antonymRush,
+  synonymStorm,
+  definitionMatch,
+  association,
+  sequencingMemory,
+}

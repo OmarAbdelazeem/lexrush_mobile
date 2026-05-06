@@ -11,6 +11,8 @@ abstract final class GameModeCodec {
         return 'definition-match';
       case GameMode.association:
         return 'association';
+      case GameMode.sequencingMemory:
+        return 'sequencing-memory';
     }
   }
 
@@ -24,6 +26,8 @@ abstract final class GameModeCodec {
         return GameMode.definitionMatch;
       case 'association':
         return GameMode.association;
+      case 'sequencing-memory':
+        return GameMode.sequencingMemory;
       default:
         return null;
     }

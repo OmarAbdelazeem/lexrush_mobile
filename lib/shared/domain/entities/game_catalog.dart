@@ -31,5 +31,12 @@ abstract final class GameCatalog {
       description: 'Link related words',
       category: 'Vocabulary',
     ),
+    GameDefinition(
+      id: 'sequencing_memory',
+      mode: GameMode.sequencingMemory,
+      title: 'Sequencing Memory',
+      description: 'Recall route order',
+      category: 'Memory',
+    ),
   ];
 }
