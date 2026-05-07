@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:lexrush/features/games/sequencing_memory/application/cubit/sequencing_memory_state.dart';
 import 'package:lexrush/features/games/sequencing_memory/data/sequencing_prompts.dart';
@@ -19,13 +21,13 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   SequencingMemoryCubit({
     SequencingRoundGenerator? roundGenerator,
     SequencingScoringService scoringService = const SequencingScoringService(),
-    SequencingAudioService audioService = const MockSequencingAudioService(),
+    SequencingAudioService? audioService,
     ReplayGoalService replayGoalService = const ReplayGoalService(),
   }) : _roundGenerator =
            roundGenerator ??
            SequencingRoundGenerator(prompts: sequencingPrompts),
        _scoringService = scoringService,
-       _audioService = audioService,
+       _audioService = audioService ?? MockSequencingAudioService(),
        _replayGoalService = replayGoalService,
        super(SequencingMemoryState.initial());
 
@@ -36,9 +38,11 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   final SequencingAudioService _audioService;
   final ReplayGoalService _replayGoalService;
 
-  SequencingAudioPlayback? _playback;
+  StreamSubscription<SequencingAudioProgress>? _audioSubscription;
   DateTime? _arrangeStartedAt;
   bool _ended = false;
+  int _activePlaybackId = 0;
+  SequencingStage? _activeListeningStage;
 
   SequencingGameResult? get gameResult => state.result;
 
@@ -46,7 +50,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   void start() {
     _log('session_start');
     _ended = false;
-    _cancelPlayback();
+    unawaited(_stopAudio());
     _roundGenerator.reset();
     _arrangeStartedAt = null;
     emit(
@@ -72,7 +76,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     }
     _log('pause from=${state.stage.name}');
     if (state.stage.isListening) {
-      _playback?.pause();
+      unawaited(_audioService.pause());
     }
     emit(
       state.copyWith(
@@ -92,7 +96,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     _log('resume to=${nextStage.name}');
     emit(state.copyWith(stage: nextStage, clearPausedFromStage: true));
     if (nextStage.isListening) {
-      _playback?.resume();
+      _enterListening(nextStage);
     }
   }
 
@@ -192,7 +196,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
         stageReplayCount: state.stageReplayCount + 1,
       ),
     );
-    _enterListening(listenStage);
+    unawaited(_enterListening(listenStage));
   }
 
   void continueAfterFeedback() {
@@ -202,7 +206,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     switch (state.stage) {
       case SequencingStage.feedbackPartOne:
         emit(state.copyWith(stageReplayCount: 0));
-        _enterListening(SequencingStage.listenPartTwo);
+        unawaited(_enterListening(SequencingStage.listenPartTwo));
       case SequencingStage.feedbackPartTwo:
         _enterCombinedArrange();
       case SequencingStage.feedbackCombined:
@@ -228,7 +232,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
       return;
     }
     _ended = true;
-    _cancelPlayback();
+    unawaited(_stopAudio());
     _log('session_end score=${state.score} review=${state.review.length}');
     emit(
       state.copyWith(
@@ -259,37 +263,34 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
         clearLastResult: true,
       ),
     );
-    _enterListening(SequencingStage.listenPartOne);
+    unawaited(_enterListening(SequencingStage.listenPartOne));
   }
 
-  void _enterListening(SequencingStage stage) {
+  Future<void> _enterListening(SequencingStage stage) async {
     if (_ended || state.currentRound == null) {
       return;
     }
     final List<String> items = _itemsForStage(stage);
-    _cancelPlayback();
+    await _stopAudio();
+    if (_ended || state.currentRound == null) {
+      return;
+    }
+    _activeListeningStage = stage;
     emit(
       state.copyWith(
         stage: stage,
         currentItems: items,
         currentCards: const <String>[],
         spokenProgress: 0,
+        currentAudioPlaybackId: _activePlaybackId,
+        clearCurrentSpokenItem: true,
         clearLastResult: true,
       ),
     );
-    _playback = _audioService.playSequence(
-      items: items,
-      onProgress: (int spokenCount) {
-        if (!_ended && state.stage == stage) {
-          emit(state.copyWith(spokenProgress: spokenCount));
-        }
-      },
-      onComplete: () {
-        if (!_ended && state.stage == stage) {
-          _enterArrange(_arrangeStageFor(stage));
-        }
-      },
-    );
+    _audioSubscription = _audioService.progress.listen(_handleAudioProgress);
+    final int playbackId = _audioService.speakSequence(items);
+    _activePlaybackId = playbackId;
+    emit(state.copyWith(currentAudioPlaybackId: playbackId));
   }
 
   void _enterArrange(SequencingStage stage) {
@@ -314,6 +315,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
           salt: salt,
         ),
         spokenProgress: items.length,
+        clearCurrentSpokenItem: true,
       ),
     );
   }
@@ -396,9 +398,45 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     );
   }
 
-  void _cancelPlayback() {
-    _playback?.cancel();
-    _playback = null;
+  void _handleAudioProgress(SequencingAudioProgress progress) {
+    final SequencingStage? listeningStage = _activeListeningStage;
+    if (_ended ||
+        listeningStage == null ||
+        progress.playbackId != _activePlaybackId ||
+        state.stage != listeningStage) {
+      return;
+    }
+    if (progress.isCancelled) {
+      return;
+    }
+    if (progress.hasError) {
+      _log('audio_error ${progress.errorMessage}');
+      return;
+    }
+    if (progress.isComplete) {
+      _activeListeningStage = null;
+      emit(
+        state.copyWith(
+          spokenProgress: progress.spokenCount,
+          clearCurrentSpokenItem: true,
+        ),
+      );
+      _enterArrange(_arrangeStageFor(listeningStage));
+      return;
+    }
+    emit(
+      state.copyWith(
+        spokenProgress: progress.spokenCount,
+        currentSpokenItem: progress.currentItem,
+      ),
+    );
+  }
+
+  Future<void> _stopAudio() async {
+    _activeListeningStage = null;
+    await _audioSubscription?.cancel();
+    _audioSubscription = null;
+    await _audioService.stop();
   }
 
   void _log(String message) {
@@ -408,8 +446,9 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   }
 
   @override
-  Future<void> close() {
-    _cancelPlayback();
+  Future<void> close() async {
+    await _stopAudio();
+    await _audioService.dispose();
     return super.close();
   }
 }

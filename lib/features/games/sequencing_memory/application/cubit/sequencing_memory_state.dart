@@ -11,6 +11,8 @@ class SequencingMemoryState extends Equatable {
     required this.currentChallengeIndex,
     required this.totalChallenges,
     required this.spokenProgress,
+    required this.currentSpokenItem,
+    required this.currentAudioPlaybackId,
     required this.currentItems,
     required this.currentCards,
     required this.replayedStageKeys,
@@ -36,6 +38,8 @@ class SequencingMemoryState extends Equatable {
       currentChallengeIndex: 0,
       totalChallenges: 3,
       spokenProgress: 0,
+      currentSpokenItem: null,
+      currentAudioPlaybackId: 0,
       currentItems: <String>[],
       currentCards: <String>[],
       replayedStageKeys: <String>[],
@@ -56,6 +60,8 @@ class SequencingMemoryState extends Equatable {
   final int currentChallengeIndex;
   final int totalChallenges;
   final int spokenProgress;
+  final String? currentSpokenItem;
+  final int currentAudioPlaybackId;
   final List<String> currentItems;
   final List<String> currentCards;
   final List<String> replayedStageKeys;
@@ -91,6 +97,9 @@ class SequencingMemoryState extends Equatable {
     int? currentChallengeIndex,
     int? totalChallenges,
     int? spokenProgress,
+    String? currentSpokenItem,
+    bool clearCurrentSpokenItem = false,
+    int? currentAudioPlaybackId,
     List<String>? currentItems,
     List<String>? currentCards,
     List<String>? replayedStageKeys,
@@ -119,6 +128,11 @@ class SequencingMemoryState extends Equatable {
           currentChallengeIndex ?? this.currentChallengeIndex,
       totalChallenges: totalChallenges ?? this.totalChallenges,
       spokenProgress: spokenProgress ?? this.spokenProgress,
+      currentSpokenItem: clearCurrentSpokenItem
+          ? null
+          : currentSpokenItem ?? this.currentSpokenItem,
+      currentAudioPlaybackId:
+          currentAudioPlaybackId ?? this.currentAudioPlaybackId,
       currentItems: currentItems ?? this.currentItems,
       currentCards: currentCards ?? this.currentCards,
       replayedStageKeys: replayedStageKeys ?? this.replayedStageKeys,
@@ -151,6 +165,8 @@ class SequencingMemoryState extends Equatable {
     currentChallengeIndex,
     totalChallenges,
     spokenProgress,
+    currentSpokenItem,
+    currentAudioPlaybackId,
     currentItems,
     currentCards,
     replayedStageKeys,

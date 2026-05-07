@@ -22,13 +22,19 @@ class SequencingMemoryResultsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stats = result.summary.stats;
-    final List<SequencingRoundResult> visibleReview = result.review
+    final List<SequencingRoundResult> combinedReview = result.review
+        .where((SequencingRoundResult item) => item.stage.isCombined)
+        .toList(growable: false);
+    final List<SequencingRoundResult> practiceMisses = result.review
         .where(
           (SequencingRoundResult item) =>
-              !item.perfect || item.stage.isCombined,
+              !item.perfect && !item.stage.isCombined,
         )
-        .take(9)
         .toList(growable: false);
+    final List<SequencingRoundResult> visibleReview = <SequencingRoundResult>[
+      ...combinedReview,
+      ...practiceMisses,
+    ].take(9).toList(growable: false);
 
     return PortraitShell(
       title: 'Sequencing Results',
@@ -103,6 +109,12 @@ class SequencingMemoryResultsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text('Review', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Combined recall first, then practice chunks that need work.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ),
             const SizedBox(height: 10),
             if (visibleReview.isEmpty)
               Text(

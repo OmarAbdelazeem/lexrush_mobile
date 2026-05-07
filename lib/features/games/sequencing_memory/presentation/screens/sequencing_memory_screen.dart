@@ -8,6 +8,7 @@ import 'package:lexrush/features/games/sequencing_memory/application/cubit/seque
 import 'package:lexrush/features/games/sequencing_memory/application/cubit/sequencing_memory_state.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_round_result.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_stage.dart';
+import 'package:lexrush/features/games/sequencing_memory/domain/services/sequencing_audio_service.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_listen_panel.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_reorder_area.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_route_background.dart';
@@ -17,10 +18,14 @@ import 'package:lexrush/shared/presentation/widgets/score_display.dart';
 class SequencingMemoryScreen extends StatelessWidget {
   const SequencingMemoryScreen({super.key});
 
+  static const bool showDebugSpokenCaption = kDebugMode;
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SequencingMemoryCubit>(
-      create: (_) => SequencingMemoryCubit()..start(),
+      create: (_) =>
+          SequencingMemoryCubit(audioService: DeviceTtsSequencingAudioService())
+            ..start(),
       child: BlocConsumer<SequencingMemoryCubit, SequencingMemoryState>(
         listener: (BuildContext context, SequencingMemoryState state) {
           if (state.stage == SequencingStage.finished && state.result != null) {
@@ -203,8 +208,6 @@ class _StageBanner extends StatelessWidget {
 class _StageBody extends StatelessWidget {
   const _StageBody({required this.state, required this.cubit, super.key});
 
-  static const bool _showMockSpokenTextInDebug = false;
-
   final SequencingMemoryState state;
   final SequencingMemoryCubit cubit;
 
@@ -219,15 +222,11 @@ class _StageBody extends StatelessWidget {
               itemCount: state.currentItems.length,
               spokenProgress: state.spokenProgress,
               label: _listenLabel(state.stage),
+              currentSpokenItem: state.currentSpokenItem,
+              showDebugSpokenCaption:
+                  SequencingMemoryScreen.showDebugSpokenCaption,
             ),
           ),
-          if (kDebugMode && _showMockSpokenTextInDebug) ...<Widget>[
-            const SizedBox(height: 12),
-            Text(
-              state.currentItems.join(' • '),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
         ],
       );
     }
@@ -338,11 +337,24 @@ class _FeedbackPanel extends StatelessWidget {
             const SizedBox(height: 14),
             Expanded(
               child: ListView.builder(
-                itemCount: result.correctOrder.length,
+                itemCount: result.correctOrder.length + 2,
                 itemBuilder: (BuildContext context, int index) {
-                  final bool correct = result.isCorrectAt(index);
-                  final String text = index < result.userOrder.length
-                      ? result.userOrder[index]
+                  if (index == 0) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Your order',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    );
+                  }
+                  if (index == result.correctOrder.length + 1) {
+                    return _CorrectOrderList(result: result);
+                  }
+                  final int orderIndex = index - 1;
+                  final bool correct = result.isCorrectAt(orderIndex);
+                  final String text = orderIndex < result.userOrder.length
+                      ? result.userOrder[orderIndex]
                       : 'Missing step';
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -375,7 +387,7 @@ class _FeedbackPanel extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '${index + 1}. $text',
+                                '${orderIndex + 1}. $text',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ),
@@ -394,6 +406,38 @@ class _FeedbackPanel extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CorrectOrderList extends StatelessWidget {
+  const _CorrectOrderList({required this.result});
+
+  final SequencingRoundResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text('Correct order', style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          ...List<Widget>.generate(result.correctOrder.length, (int index) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '${index + 1}. ${result.correctOrder[index]}',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.reward,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

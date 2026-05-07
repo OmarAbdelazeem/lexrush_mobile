@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lexrush/features/games/sequencing_memory/application/cubit/sequencing_memory_cubit.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_stage.dart';
@@ -12,6 +14,7 @@ void main() {
       );
 
       cubit.start();
+      await _settle();
 
       expect(cubit.state.currentChallengeIndex, 1);
       expect(cubit.state.totalChallenges, 3);
@@ -24,7 +27,7 @@ void main() {
     });
 
     test(
-      'mock audio completion advances to arrange without exposing cards early',
+      'audio completion advances to arrange without exposing cards early',
       () async {
         final _ControlledAudioService audio = _ControlledAudioService();
         final SequencingMemoryCubit cubit = SequencingMemoryCubit(
@@ -32,13 +35,41 @@ void main() {
         );
 
         cubit.start();
+        await _settle();
         expect(cubit.state.currentCards, isEmpty);
 
-        audio.playback.complete();
+        audio.complete();
+        await _settle();
 
         expect(cubit.state.stage, SequencingStage.arrangePartOne);
         expect(cubit.state.currentCards, hasLength(3));
         expect(cubit.state.spokenProgress, 3);
+        expect(cubit.state.currentSpokenItem, isNull);
+
+        await cubit.close();
+      },
+    );
+
+    test(
+      'spoken item progress updates caption state only while listening',
+      () async {
+        final _ControlledAudioService audio = _ControlledAudioService();
+        final SequencingMemoryCubit cubit = SequencingMemoryCubit(
+          audioService: audio,
+        );
+
+        cubit.start();
+        await _settle();
+        audio.emitCurrentItem('Right on Abbeyhill');
+        await _settle();
+
+        expect(cubit.state.stage, SequencingStage.listenPartOne);
+        expect(cubit.state.currentSpokenItem, 'Right on Abbeyhill');
+        expect(cubit.state.currentCards, isEmpty);
+
+        audio.complete();
+        await _settle();
+        expect(cubit.state.currentSpokenItem, isNull);
 
         await cubit.close();
       },
@@ -51,7 +82,9 @@ void main() {
       );
 
       cubit.start();
-      audio.playback.complete();
+      await _settle();
+      audio.complete();
+      await _settle();
       _reorderTo(cubit, cubit.state.currentItems);
       cubit.submitCurrentOrder();
 
@@ -71,7 +104,9 @@ void main() {
       );
 
       cubit.start();
-      audio.playback.complete();
+      await _settle();
+      audio.complete();
+      await _settle();
       final List<String> target = cubit.state.currentItems;
       _reorderTo(cubit, <String>[target[0], target[2], target[1]]);
       cubit.submitCurrentOrder();
@@ -84,21 +119,29 @@ void main() {
       await cubit.close();
     });
 
-    test('replay increments once per part and returns to listening', () async {
+    test('replay increments once per part and replays the same part', () async {
       final _ControlledAudioService audio = _ControlledAudioService();
       final SequencingMemoryCubit cubit = SequencingMemoryCubit(
         audioService: audio,
       );
 
       cubit.start();
-      audio.playback.complete();
+      await _settle();
+      audio.complete();
+      await _settle();
+      final List<String> partOne = cubit.state.currentItems;
 
       cubit.replayCurrentPart();
+      await _settle();
+
       expect(cubit.state.stage, SequencingStage.listenPartOne);
+      expect(cubit.state.currentItems, partOne);
       expect(cubit.state.replayCount, 1);
       expect(cubit.state.stageReplayCount, 1);
+      expect(audio.plays, 2);
 
-      audio.playback.complete();
+      audio.complete();
+      await _settle();
       expect(cubit.state.stage, SequencingStage.arrangePartOne);
       expect(cubit.state.canReplay, isFalse);
 
@@ -116,12 +159,16 @@ void main() {
       );
 
       cubit.start();
-      audio.playback.complete();
+      await _settle();
+      audio.complete();
+      await _settle();
       _submitPerfect(cubit);
       cubit.continueAfterFeedback();
+      await _settle();
 
       expect(cubit.state.stage, SequencingStage.listenPartTwo);
-      audio.playback.complete();
+      audio.complete();
+      await _settle();
       _submitPerfect(cubit);
       cubit.continueAfterFeedback();
 
@@ -135,6 +182,26 @@ void main() {
       await cubit.close();
     });
 
+    test('duplicate audio completion does not advance twice', () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = SequencingMemoryCubit(
+        audioService: audio,
+      );
+
+      cubit.start();
+      await _settle();
+      final int playbackId = audio.activePlaybackId;
+      audio.complete(playbackId: playbackId);
+      audio.complete(playbackId: playbackId);
+      await _settle();
+
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+      expect(cubit.state.currentRound?.roundId, 1);
+      expect(cubit.state.currentCards, hasLength(3));
+
+      await cubit.close();
+    });
+
     test('final result computes honest sequencing metrics', () async {
       final _ControlledAudioService audio = _ControlledAudioService();
       final SequencingMemoryCubit cubit = SequencingMemoryCubit(
@@ -142,15 +209,20 @@ void main() {
       );
 
       cubit.start();
+      await _settle();
       for (int challenge = 0; challenge < 3; challenge += 1) {
-        audio.playback.complete();
+        audio.complete();
+        await _settle();
         _submitPerfect(cubit);
         cubit.continueAfterFeedback();
-        audio.playback.complete();
+        await _settle();
+        audio.complete();
+        await _settle();
         _submitPerfect(cubit);
         cubit.continueAfterFeedback();
         _submitPerfect(cubit);
         cubit.continueAfterFeedback();
+        await _settle();
       }
 
       expect(cubit.state.stage, SequencingStage.finished);
@@ -166,31 +238,39 @@ void main() {
       await cubit.close();
     });
 
-    test('pause and restart keep pending audio callbacks safe', () async {
+    test('pause and restart cancel pending audio safely', () async {
       final _ControlledAudioService audio = _ControlledAudioService();
       final SequencingMemoryCubit cubit = SequencingMemoryCubit(
         audioService: audio,
       );
 
       cubit.start();
+      await _settle();
       cubit.pause();
-      expect(audio.playback.paused, isTrue);
-      audio.playback.complete();
+      await _settle();
+      expect(audio.pauseCount, 1);
+      audio.complete();
+      await _settle();
 
       expect(cubit.state.stage, SequencingStage.paused);
 
       cubit.resume();
-      expect(audio.playback.paused, isFalse);
-      audio.playback.complete();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+      audio.complete();
+      await _settle();
       expect(cubit.state.stage, SequencingStage.arrangePartOne);
 
-      final _ControlledPlayback stalePlayback = audio.playback;
+      final int stalePlaybackId = audio.activePlaybackId;
       cubit.restart();
-      stalePlayback.complete();
+      await _settle();
+      audio.complete(playbackId: stalePlaybackId);
+      await _settle();
 
       expect(cubit.state.stage, SequencingStage.listenPartOne);
       expect(cubit.state.currentRound?.roundId, 1);
       expect(cubit.state.review, isEmpty);
+      expect(audio.stopCount, greaterThanOrEqualTo(1));
 
       await cubit.close();
     });
@@ -198,60 +278,88 @@ void main() {
 }
 
 class _ControlledAudioService implements SequencingAudioService {
+  final StreamController<SequencingAudioProgress> _progress =
+      StreamController<SequencingAudioProgress>.broadcast();
+
   int plays = 0;
-  late _ControlledPlayback playback;
+  int stopCount = 0;
+  int pauseCount = 0;
+  int resumeCount = 0;
+  int activePlaybackId = 0;
+  int itemCount = 0;
+  bool _isSpeaking = false;
 
   @override
-  SequencingAudioPlayback playSequence({
-    required List<String> items,
-    required void Function(int spokenCount) onProgress,
-    required void Function() onComplete,
-  }) {
+  Stream<SequencingAudioProgress> get progress => _progress.stream;
+
+  @override
+  bool get isSpeaking => _isSpeaking;
+
+  @override
+  int speakItem(String item) => speakSequence(<String>[item]);
+
+  @override
+  int speakSequence(List<String> items) {
     plays += 1;
-    onProgress(0);
-    playback = _ControlledPlayback(
-      itemCount: items.length,
-      onProgress: onProgress,
-      onComplete: onComplete,
+    activePlaybackId += 1;
+    itemCount = items.length;
+    _isSpeaking = true;
+    return activePlaybackId;
+  }
+
+  void emitCurrentItem(String item, {int? playbackId}) {
+    _progress.add(
+      SequencingAudioProgress(
+        playbackId: playbackId ?? activePlaybackId,
+        spokenCount: 0,
+        currentItemIndex: 0,
+        currentItem: item,
+      ),
     );
-    return playback;
   }
-}
 
-class _ControlledPlayback implements SequencingAudioPlayback {
-  _ControlledPlayback({
-    required this.itemCount,
-    required this.onProgress,
-    required this.onComplete,
-  });
+  void complete({int? playbackId}) {
+    _isSpeaking = false;
+    _progress.add(
+      SequencingAudioProgress(
+        playbackId: playbackId ?? activePlaybackId,
+        spokenCount: itemCount,
+        currentItemIndex: itemCount,
+        isComplete: true,
+      ),
+    );
+  }
 
-  final int itemCount;
-  final void Function(int spokenCount) onProgress;
-  final void Function() onComplete;
-  bool paused = false;
-  bool cancelled = false;
-
-  void complete() {
-    if (cancelled) {
-      return;
+  @override
+  Future<void> stop() async {
+    stopCount += 1;
+    if (_isSpeaking) {
+      _isSpeaking = false;
+      _progress.add(
+        SequencingAudioProgress(
+          playbackId: activePlaybackId,
+          spokenCount: 0,
+          currentItemIndex: 0,
+          isCancelled: true,
+        ),
+      );
     }
-    onProgress(itemCount);
-    onComplete();
   }
 
   @override
-  void cancel() {
-    cancelled = true;
+  Future<void> pause() async {
+    pauseCount += 1;
+    await stop();
   }
 
   @override
-  void pause() {
-    paused = true;
+  Future<void> resume() async {
+    resumeCount += 1;
   }
 
   @override
-  void resume() {
-    paused = false;
+  Future<void> dispose() async {
+    await _progress.close();
   }
 }
 
@@ -275,4 +383,9 @@ void _reorderTo(SequencingMemoryCubit cubit, List<String> desiredOrder) {
     final String moved = local.removeAt(oldIndex);
     local.insert(targetIndex, moved);
   }
+}
+
+Future<void> _settle() async {
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
 }

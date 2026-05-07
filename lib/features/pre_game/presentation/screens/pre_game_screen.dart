@@ -81,10 +81,7 @@ class _PreGameScreenState extends State<PreGameScreen> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.local_fire_department,
-                    color: Colors.white,
-                  ),
+                  child: Icon(_iconForMode(widget.mode), color: Colors.white),
                 ),
                 const SizedBox(width: 12),
                 Column(
@@ -119,7 +116,7 @@ class _PreGameScreenState extends State<PreGameScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Get set to react fast',
+                          _readySubtitleForMode(widget.mode),
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                       ],
@@ -166,6 +163,30 @@ class _PreGameScreenState extends State<PreGameScreen> {
       case GameMode.definitionMatch:
       case GameMode.association:
         return '60 seconds • Fast focus';
+    }
+  }
+
+  IconData _iconForMode(GameMode mode) {
+    switch (mode) {
+      case GameMode.sequencingMemory:
+        return Icons.route_rounded;
+      case GameMode.antonymRush:
+      case GameMode.synonymStorm:
+      case GameMode.definitionMatch:
+      case GameMode.association:
+        return Icons.local_fire_department;
+    }
+  }
+
+  String _readySubtitleForMode(GameMode mode) {
+    switch (mode) {
+      case GameMode.sequencingMemory:
+        return 'Listen closely. Rebuild the route.';
+      case GameMode.antonymRush:
+      case GameMode.synonymStorm:
+      case GameMode.definitionMatch:
+      case GameMode.association:
+        return 'Get set to react fast';
     }
   }
 }

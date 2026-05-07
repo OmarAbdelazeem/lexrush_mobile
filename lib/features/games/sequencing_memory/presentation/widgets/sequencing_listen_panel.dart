@@ -8,12 +8,16 @@ class SequencingListenPanel extends StatefulWidget {
     required this.itemCount,
     required this.spokenProgress,
     required this.label,
+    required this.currentSpokenItem,
+    this.showDebugSpokenCaption = false,
     super.key,
   });
 
   final int itemCount;
   final int spokenProgress;
   final String label;
+  final String? currentSpokenItem;
+  final bool showDebugSpokenCaption;
 
   @override
   State<SequencingListenPanel> createState() => _SequencingListenPanelState();
@@ -66,6 +70,41 @@ class _SequencingListenPanelState extends State<SequencingListenPanel>
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
             ),
+            const SizedBox(height: 10),
+            Text(
+              'Step ${_visibleStep()} of ${widget.itemCount}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (widget.showDebugSpokenCaption &&
+                widget.currentSpokenItem != null) ...<Widget>[
+              const SizedBox(height: 10),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.background.withValues(alpha: 0.48),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppColors.accent.withValues(alpha: 0.24),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    widget.currentSpokenItem!,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               height: 54,
@@ -103,6 +142,14 @@ class _SequencingListenPanelState extends State<SequencingListenPanel>
         ),
       ),
     );
+  }
+
+  int _visibleStep() {
+    if (widget.itemCount == 0) {
+      return 0;
+    }
+    final int step = widget.spokenProgress + 1;
+    return step.clamp(1, widget.itemCount);
   }
 }
 
