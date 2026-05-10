@@ -4,4 +4,5 @@ enum GameMode {
   definitionMatch,
   association,
   sequencingMemory,
+  commas,
 }

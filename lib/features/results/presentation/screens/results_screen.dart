@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_game_result.dart';
 import 'package:lexrush/features/games/association/presentation/screens/association_results_screen.dart';
+import 'package:lexrush/features/games/commas/domain/entities/commas_game_result.dart';
+import 'package:lexrush/features/games/commas/presentation/screens/commas_results_screen.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_game_result.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/screens/sequencing_memory_results_screen.dart';
 import 'package:lexrush/shared/domain/entities/game_mode.dart';
@@ -32,6 +34,16 @@ class ResultsScreen extends StatelessWidget {
         result: extra,
         onPlayAgain: () => context.go(
           '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.sequencingMemory)}',
+        ),
+        onBackToModes: () => context.go(AppRoutes.modeSelection),
+      );
+    }
+    if (extra is CommasGameResult) {
+      debugPrint('[ResultsScreen] rendering commas-result');
+      return CommasResultsScreen(
+        result: extra,
+        onPlayAgain: () => context.go(
+          '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.commas)}',
         ),
         onBackToModes: () => context.go(AppRoutes.modeSelection),
       );

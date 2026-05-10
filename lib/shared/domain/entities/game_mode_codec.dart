@@ -13,6 +13,8 @@ abstract final class GameModeCodec {
         return 'association';
       case GameMode.sequencingMemory:
         return 'sequencing-memory';
+      case GameMode.commas:
+        return 'commas';
     }
   }
 
@@ -28,6 +30,8 @@ abstract final class GameModeCodec {
         return GameMode.association;
       case 'sequencing-memory':
         return GameMode.sequencingMemory;
+      case 'commas':
+        return GameMode.commas;
       default:
         return null;
     }

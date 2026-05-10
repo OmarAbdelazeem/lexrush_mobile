@@ -38,5 +38,12 @@ abstract final class GameCatalog {
       description: 'Recall route order',
       category: 'Memory',
     ),
+    GameDefinition(
+      id: 'commas',
+      mode: GameMode.commas,
+      title: 'Commas',
+      description: 'Restore punctuation',
+      category: 'Writing',
+    ),
   ];
 }

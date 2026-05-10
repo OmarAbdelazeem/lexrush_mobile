@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:lexrush/features/games/antonym_rush/presentation/screens/antonym_rush_screen.dart';
 import 'package:lexrush/features/games/association/presentation/screens/association_screen.dart';
+import 'package:lexrush/features/games/commas/presentation/screens/commas_screen.dart';
 import 'package:lexrush/features/games/definition_match/presentation/screens/definition_match_screen.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/screens/sequencing_memory_screen.dart';
 import 'package:lexrush/features/games/synonym_storm/presentation/screens/synonym_storm_screen.dart';
@@ -61,6 +62,8 @@ abstract final class AppRouter {
               return const AssociationScreen();
             case GameMode.sequencingMemory:
               return const SequencingMemoryScreen();
+            case GameMode.commas:
+              return const CommasScreen();
             case GameMode.antonymRush:
             case null:
               return const AntonymRushScreen();

@@ -151,6 +151,8 @@ class _PreGameScreenState extends State<PreGameScreen> {
         return 'Association';
       case GameMode.sequencingMemory:
         return 'Sequencing Memory';
+      case GameMode.commas:
+        return 'Commas';
     }
   }
 
@@ -158,6 +160,8 @@ class _PreGameScreenState extends State<PreGameScreen> {
     switch (mode) {
       case GameMode.sequencingMemory:
         return '3 routes • Memory recall';
+      case GameMode.commas:
+        return '60 seconds • Punctuation focus';
       case GameMode.antonymRush:
       case GameMode.synonymStorm:
       case GameMode.definitionMatch:
@@ -170,6 +174,8 @@ class _PreGameScreenState extends State<PreGameScreen> {
     switch (mode) {
       case GameMode.sequencingMemory:
         return Icons.route_rounded;
+      case GameMode.commas:
+        return Icons.format_quote_rounded;
       case GameMode.antonymRush:
       case GameMode.synonymStorm:
       case GameMode.definitionMatch:
@@ -182,6 +188,8 @@ class _PreGameScreenState extends State<PreGameScreen> {
     switch (mode) {
       case GameMode.sequencingMemory:
         return 'Listen closely. Rebuild the route.';
+      case GameMode.commas:
+        return 'Tap the spaces. Add clarity.';
       case GameMode.antonymRush:
       case GameMode.synonymStorm:
       case GameMode.definitionMatch:
