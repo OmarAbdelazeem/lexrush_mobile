@@ -21,24 +21,30 @@ class CommaFeedback extends StatelessWidget {
       CommasStatus.sentenceComplete => AppColors.reward,
       _ => AppColors.accent,
     };
+    final String displayText = status == CommasStatus.wrongFeedback
+        ? 'Not there'
+        : status == CommasStatus.correctFeedback
+        ? ''
+        : text;
+    final bool showContainer = visible && displayText.isNotEmpty;
 
     return AnimatedOpacity(
-      opacity: visible ? 1 : 0,
+      opacity: showContainer ? 1 : 0,
       duration: const Duration(milliseconds: 140),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        height: 46,
+        height: showContainer ? 30 : 8,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: visible ? 0.16 : 0),
-          borderRadius: BorderRadius.circular(16),
+          color: color.withValues(alpha: showContainer ? 0.10 : 0),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: color.withValues(alpha: visible ? 0.42 : 0),
+            color: color.withValues(alpha: showContainer ? 0.30 : 0),
           ),
         ),
         child: Text(
-          text,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          displayText,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: color,
             fontWeight: FontWeight.w900,
           ),

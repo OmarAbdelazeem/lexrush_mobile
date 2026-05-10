@@ -43,14 +43,14 @@ class _CommasScreenState extends State<CommasScreen> {
             child: Stack(
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       _Header(state: state),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
                       _Hud(state: state),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
                       if (state.tokens.isEmpty)
                         const Expanded(
                           child: Center(child: CircularProgressIndicator()),
@@ -65,18 +65,21 @@ class _CommasScreenState extends State<CommasScreen> {
                                   tokens: state.tokens,
                                   flashGapAfterTokenIndex:
                                       state.flashGapAfterTokenIndex,
+                                  sentenceCompletePulse:
+                                      state.status ==
+                                      CommasStatus.sentenceComplete,
                                   showDebugGapHitboxes:
                                       CommasScreen.showDebugGapHitboxes,
                                   onGapTap: context
                                       .read<CommasCubit>()
                                       .submitGap,
                                 ),
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 8),
                                 CommaFeedback(
                                   status: state.status,
                                   feedbackText: state.feedbackText,
                                 ),
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 8),
                                 Text(
                                   _helperText(state.remainingCommaCount),
                                   textAlign: TextAlign.center,

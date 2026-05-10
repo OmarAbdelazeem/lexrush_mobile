@@ -5,33 +5,29 @@ import 'package:lexrush/app/theme/app_colors.dart';
 class CommaGapDetector extends StatelessWidget {
   const CommaGapDetector({
     required this.afterTokenIndex,
-    required this.commaPlaced,
     required this.isFlashingWrong,
     required this.onTap,
     this.showDebugHitboxes = false,
+    this.width = 28,
+    this.height = 40,
     super.key,
   });
 
   final int afterTokenIndex;
-  final bool commaPlaced;
   final bool isFlashingWrong;
   final ValueChanged<int> onTap;
   final bool showDebugHitboxes;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     final bool debugVisible = kDebugMode && showDebugHitboxes;
-    final Color borderColor = isFlashingWrong
-        ? AppColors.error
-        : commaPlaced
-        ? AppColors.accent
-        : debugVisible
-        ? AppColors.reward.withValues(alpha: 0.65)
+    final Color fillColor = debugVisible
+        ? AppColors.reward.withValues(alpha: 0.12)
         : Colors.transparent;
-    final Color fillColor = isFlashingWrong
-        ? AppColors.error.withValues(alpha: 0.20)
-        : debugVisible
-        ? AppColors.reward.withValues(alpha: 0.10)
+    final Color borderColor = debugVisible
+        ? AppColors.reward.withValues(alpha: 0.65)
         : Colors.transparent;
 
     return Semantics(
@@ -40,28 +36,47 @@ class CommaGapDetector extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => onTap(afterTokenIndex),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          width: 28,
-          height: 44,
-          margin: const EdgeInsets.only(right: 2),
-          alignment: Alignment.centerLeft,
-          decoration: BoxDecoration(
-            color: fillColor,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor),
-          ),
-          child: AnimatedOpacity(
-            opacity: commaPlaced ? 1 : 0,
-            duration: const Duration(milliseconds: 140),
-            child: Text(
-              ',',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppColors.accent,
-                fontWeight: FontWeight.w900,
-                height: 1,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  color: isFlashingWrong
+                      ? AppColors.error.withValues(alpha: 0.08)
+                      : fillColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: borderColor),
+                ),
               ),
-            ),
+              AnimatedOpacity(
+                opacity: isFlashingWrong ? 1 : 0,
+                duration: const Duration(milliseconds: 90),
+                child: Transform.translate(
+                  offset: Offset(0, height * 0.24),
+                  child: Container(
+                    width: width.clamp(18, 30),
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(99),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: AppColors.error.withValues(alpha: 0.55),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

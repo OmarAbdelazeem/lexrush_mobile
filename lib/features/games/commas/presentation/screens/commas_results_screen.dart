@@ -178,63 +178,143 @@ class _ReviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          _LabelValue(
+          _SentenceBlock(
             label: 'Original',
             value: item.prompt.displayTextWithoutCommas,
           ),
-          const SizedBox(height: 8),
-          _LabelValue(
+          const SizedBox(height: 10),
+          _SentenceBlock(
             label: 'Correct',
             value: item.prompt.correctTextWithCommas,
+            emphasized: true,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Placed gaps: ${_formatIndexes(item.placedCommaIndexes)}',
-            style: Theme.of(context).textTheme.bodyMedium,
+          const SizedBox(height: 12),
+          _LearningNote(
+            label: 'Your commas',
+            value: 'after ${_formatWords(item, item.placedCommaIndexes)}',
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Wrong gaps: ${_formatIndexes(item.wrongGapIndexes)}',
-            style: Theme.of(context).textTheme.bodyMedium,
+          const SizedBox(height: 5),
+          _LearningNote(
+            label: 'Correct commas',
+            value: 'after ${_formatWords(item, _correctIndexes(item))}',
           ),
-          const SizedBox(height: 8),
-          Text(
-            item.prompt.explanation,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          const SizedBox(height: 5),
+          _LearningNote(
+            label: 'Wrong taps',
+            value: _formatWords(item, item.wrongGapIndexes) == 'none'
+                ? 'none'
+                : 'after ${_formatWords(item, item.wrongGapIndexes)}',
           ),
+          const SizedBox(height: 5),
+          _LearningNote(label: 'Rule', value: item.prompt.explanation),
         ],
       ),
     );
   }
 
-  String _formatIndexes(List<int> indexes) {
+  String _formatWords(CommaRoundResult item, List<int> indexes) {
     if (indexes.isEmpty) return 'none';
-    return indexes.map((int index) => 'after $index').join(', ');
+    final List<String> tokens = item.prompt.displayTextWithoutCommas.split(' ');
+    final List<String> words = indexes
+        .where((int index) => index >= 0 && index < tokens.length)
+        .map((int index) => _cleanToken(tokens[index]))
+        .toList();
+    if (words.isEmpty) return 'none';
+    return words.join(', ');
+  }
+
+  String _cleanToken(String token) {
+    return token.replaceAll(RegExp(r'[,.!?;:]+$'), '');
+  }
+
+  List<int> _correctIndexes(CommaRoundResult item) {
+    return item.prompt.insertionPoints
+        .map((point) => point.afterTokenIndex)
+        .toList();
   }
 }
 
-class _LabelValue extends StatelessWidget {
-  const _LabelValue({required this.label, required this.value});
+class _SentenceBlock extends StatelessWidget {
+  const _SentenceBlock({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: emphasized ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: emphasized
+              ? AppColors.accent.withValues(alpha: 0.22)
+              : Colors.white.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: AppColors.accent,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.textPrimary,
+              height: 1.28,
+              fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LearningNote extends StatelessWidget {
+  const _LearningNote({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: <Widget>[
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.accent,
-            fontWeight: FontWeight.w800,
+        SizedBox(
+          width: 132,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
-        const SizedBox(height: 3),
-        Text(value, style: Theme.of(context).textTheme.bodyLarge),
+        Expanded(
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textPrimary,
+              height: 1.25,
+            ),
+          ),
+        ),
       ],
     );
   }
