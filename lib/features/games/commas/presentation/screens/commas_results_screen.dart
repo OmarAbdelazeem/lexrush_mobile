@@ -191,19 +191,19 @@ class _ReviewCard extends StatelessWidget {
           const SizedBox(height: 12),
           _LearningNote(
             label: 'Your commas',
-            value: 'after ${_formatWords(item, item.placedCommaIndexes)}',
+            value: _afterPhrase('You placed commas', item.placedCommaIndexes),
           ),
           const SizedBox(height: 5),
           _LearningNote(
-            label: 'Correct commas',
+            label: 'Correct answer',
             value: 'after ${_formatWords(item, _correctIndexes(item))}',
           ),
           const SizedBox(height: 5),
           _LearningNote(
             label: 'Wrong taps',
-            value: _formatWords(item, item.wrongGapIndexes) == 'none'
-                ? 'none'
-                : 'after ${_formatWords(item, item.wrongGapIndexes)}',
+            value: item.wrongGapIndexes.isEmpty
+                ? 'No wrong taps'
+                : _afterPhrase('You tapped', item.wrongGapIndexes),
           ),
           const SizedBox(height: 5),
           _LearningNote(label: 'Rule', value: item.prompt.explanation),
@@ -231,6 +231,12 @@ class _ReviewCard extends StatelessWidget {
     return item.prompt.insertionPoints
         .map((point) => point.afterTokenIndex)
         .toList();
+  }
+
+  String _afterPhrase(String prefix, List<int> indexes) {
+    final String words = _formatWords(item, indexes);
+    if (words == 'none') return '$prefix: none';
+    return '$prefix after $words';
   }
 }
 
@@ -292,27 +298,22 @@ class _LearningNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        SizedBox(
-          width: 132,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w800,
-            ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w900,
           ),
         ),
-        Expanded(
-          child: Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textPrimary,
-              height: 1.25,
-            ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textPrimary,
+            height: 1.28,
           ),
         ),
       ],

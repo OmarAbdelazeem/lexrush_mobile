@@ -6,6 +6,7 @@ import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_cubit.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_state.dart';
+import 'package:lexrush/features/games/commas/domain/entities/comma_difficulty.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_feedback.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_area.dart';
 
@@ -43,55 +44,36 @@ class _CommasScreenState extends State<CommasScreen> {
             child: Stack(
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       _Header(state: state),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       _Hud(state: state),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
                       if (state.tokens.isEmpty)
                         const Expanded(
                           child: Center(child: CircularProgressIndicator()),
                         )
                       else
                         Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                CommaTextArea(
-                                  tokens: state.tokens,
-                                  flashGapAfterTokenIndex:
-                                      state.flashGapAfterTokenIndex,
-                                  sentenceCompletePulse:
-                                      state.status ==
-                                      CommasStatus.sentenceComplete,
-                                  showDebugGapHitboxes:
-                                      CommasScreen.showDebugGapHitboxes,
-                                  onGapTap: context
-                                      .read<CommasCubit>()
-                                      .submitGap,
-                                ),
-                                const SizedBox(height: 8),
-                                CommaFeedback(
-                                  status: state.status,
-                                  feedbackText: state.feedbackText,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _helperText(state.remainingCommaCount),
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                ),
-                              ],
-                            ),
+                          child: _PromptStage(
+                            state: state,
+                            onGapTap: context.read<CommasCubit>().submitGap,
+                            helperText: _helperText(state.remainingCommaCount),
                           ),
                         ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Tap the spaces where a comma is missing.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.textPrimary.withValues(alpha: 0.82),
+                          fontWeight: FontWeight.w800,
+                          height: 1.24,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -109,6 +91,63 @@ class _CommasScreenState extends State<CommasScreen> {
     if (remaining == 1) return 'One comma left';
     if (remaining > 1) return '$remaining commas left';
     return 'Tap the spaces where commas are missing.';
+  }
+}
+
+class _PromptStage extends StatelessWidget {
+  const _PromptStage({
+    required this.state,
+    required this.onGapTap,
+    required this.helperText,
+  });
+
+  final CommasState state;
+  final ValueChanged<int> onGapTap;
+  final String helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    final CommaDifficulty difficulty =
+        state.currentPrompt?.difficulty ?? CommaDifficulty.medium;
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                CommaTextArea(
+                  tokens: state.tokens,
+                  flashGapAfterTokenIndex: state.flashGapAfterTokenIndex,
+                  sentenceCompletePulse:
+                      state.status == CommasStatus.sentenceComplete,
+                  difficulty: difficulty,
+                  showDebugGapHitboxes: CommasScreen.showDebugGapHitboxes,
+                  onGapTap: onGapTap,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  helperText,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                CommaFeedback(
+                  status: state.status,
+                  feedbackText: state.feedbackText,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -164,7 +203,7 @@ class _Hud extends StatelessWidget {
         _HudTile(label: 'Left', value: '${state.remainingCommaCount}'),
         const Spacer(),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: state.timeLeft <= 10
                 ? AppColors.error.withValues(alpha: 0.16)
@@ -198,8 +237,8 @@ class _HudTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 88,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      width: 78,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),

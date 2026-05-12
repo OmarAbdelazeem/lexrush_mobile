@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lexrush/features/games/commas/domain/entities/comma_difficulty.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_gap_detector.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_area.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_token.dart';
@@ -24,9 +25,12 @@ void main() {
       ),
     );
 
-    final RichText text = tester.widget<RichText>(find.byType(RichText).first);
-    expect(text.text.toPlainText(), contains('Agra, India.'));
-    expect(text.text.toPlainText(), isNot(contains('Agra , India.')));
+    final List<String> renderedText = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((RichText text) => text.text.toPlainText())
+        .toList();
+    expect(renderedText, contains(contains('Agra, India.')));
+    expect(renderedText, isNot(contains(contains('Agra , India.'))));
   });
 
   testWidgets('gap overlay forwards afterTokenIndex', (tester) async {
@@ -69,13 +73,35 @@ void main() {
 
     expect(decoration.border!.top.color, Colors.transparent);
   });
+
+  testWidgets('ghost affordances render for every tappable gap', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _Harness(
+        difficulty: CommaDifficulty.beginner,
+        tokens: _tokens(<String>['After', 'dinner', 'we', 'walked.']),
+      ),
+    );
+
+    expect(find.byType(CommaGapDetector), findsNWidgets(3));
+    expect(
+      find.byKey(const ValueKey<String>('comma-gap-affordance')),
+      findsNWidgets(3),
+    );
+  });
 }
 
 class _Harness extends StatelessWidget {
-  const _Harness({required this.tokens, this.onGapTap});
+  const _Harness({
+    required this.tokens,
+    this.onGapTap,
+    this.difficulty = CommaDifficulty.medium,
+  });
 
   final List<CommaToken> tokens;
   final ValueChanged<int>? onGapTap;
+  final CommaDifficulty difficulty;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +114,7 @@ class _Harness extends StatelessWidget {
               tokens: tokens,
               flashGapAfterTokenIndex: null,
               sentenceCompletePulse: false,
+              difficulty: difficulty,
               onGapTap: onGapTap ?? (_) {},
             ),
           ),

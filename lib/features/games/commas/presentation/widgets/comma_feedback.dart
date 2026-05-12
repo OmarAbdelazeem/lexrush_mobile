@@ -22,7 +22,7 @@ class CommaFeedback extends StatelessWidget {
       _ => AppColors.accent,
     };
     final String displayText = status == CommasStatus.wrongFeedback
-        ? 'Not there'
+        ? ''
         : status == CommasStatus.correctFeedback
         ? ''
         : text;
