@@ -21,8 +21,22 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 - UI: neural graph, multi-controller animations (`_entry`, `_ambient`, `_correct`, `_wrong`), hint **pill** when `contextHint` is set (hard prompts).
 - Dev-only logs: **`[AssociationTelemetry]`** prefix.
 
+### Sequencing Memory (shipped mode)
+- Full flow under `lib/features/games/sequencing_memory/`: **3 route challenges**, no lives, no global timer.
+- Stage flow is part one → feedback → part two → feedback → combined recall → feedback for each route.
+- Runtime audio uses **`DeviceTtsSequencingAudioService`** (`flutter_tts`) behind **`SequencingAudioService`**; tests use mock/controlled audio services.
+- Listening hides reorder cards; optional debug spoken caption is developer-only and must not drive Cubit logic.
+- Replay is **1 per part**; combined recall has no replay. Scoring remains perfect part `+100`, perfect combined `+200`, partial `+20` per correct position.
+
+### Commas (shipped mode)
+- Full flow under `lib/features/games/commas/`: **60s** session, curated prompt data only, no runtime grammar detection.
+- `CommasCubit` owns timer, prompt selection, placed commas, wrong taps, scoring, history, and results.
+- `CommaTextArea` renders natural prose as one `RichText` string and overlays TextPainter-measured transparent `CommaGapDetector` hitboxes using stable `afterTokenIndex` values.
+- Scoring remains correct comma `+100`, sentence complete bonus `+100`, wrong tap `-3s`.
+- Results review should stay user-friendly: original/correct blocks plus your commas, wrong taps, rule, and explanation.
+
 ### Docs
-- **[`docs/Testing_Tutorial.md`](../Testing_Tutorial.md)** — manual QA: emulator, physical device, `adb` taps/screenshots/recordings, iOS Simulator, `pm clear`, bug template.
+- **[`docs/testing/Testing_Tutorial.md`](../testing/Testing_Tutorial.md)** — manual QA: emulator, physical device, `adb` taps/screenshots/recordings, iOS Simulator, `pm clear`, bug template.
 
 ---
 
@@ -47,6 +61,27 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 - `test/association_cubit_test.dart`
 - `tool/sim_association_60s_session.dart`
 
+**Sequencing Memory**
+- `lib/features/games/sequencing_memory/application/cubit/sequencing_memory_cubit.dart`
+- `lib/features/games/sequencing_memory/domain/services/sequencing_audio_service.dart`
+- `lib/features/games/sequencing_memory/domain/services/sequencing_round_generator.dart`
+- `lib/features/games/sequencing_memory/domain/services/sequencing_scoring_service.dart`
+- `lib/features/games/sequencing_memory/data/sequencing_prompts.dart`
+- `lib/features/games/sequencing_memory/presentation/screens/sequencing_memory_screen.dart`
+- `lib/features/games/sequencing_memory/presentation/screens/sequencing_memory_results_screen.dart`
+- `test/sequencing_memory_cubit_test.dart`
+
+**Commas**
+- `lib/features/games/commas/application/cubit/commas_cubit.dart`
+- `lib/features/games/commas/domain/services/comma_round_generator.dart`
+- `lib/features/games/commas/domain/services/comma_scoring_service.dart`
+- `lib/features/games/commas/data/comma_prompts.dart`
+- `lib/features/games/commas/presentation/screens/commas_screen.dart`
+- `lib/features/games/commas/presentation/screens/commas_results_screen.dart`
+- `lib/features/games/commas/presentation/widgets/comma_text_area.dart`
+- `test/commas_cubit_test.dart`
+- `test/commas_text_area_widget_test.dart`
+
 **Shared**
 - `lib/app/router/app_router.dart`
 - `lib/shared/domain/entities/game_catalog.dart`
@@ -58,16 +93,20 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 
 - **Antonym:** Periodic **real device** or recorded pass to ensure escape-line timing still **feels** fair vs `roundTimeout`; if users report “Missed while tappable,” compare **`AntonymRoundTelemetry`** + **`tap_ignored`** with video frame timing.
 - **Association:** **Content** quality over time (synonym nuance); hints must stay **hard-tier** for ambiguous lemmas. Optional: `integration_test` for happy paths.
+- **Sequencing Memory:** Real-device TTS pacing and stop/pause/exit behavior should be checked periodically; do not expose full sequence order during listening.
+- **Commas:** Text renderer/game feel is the main polish surface; preserve TextPainter hitbox alignment while tuning typography, affordances, and feedback.
 - **Catalog:** Synonym Storm / Definition Match appear in UI registry; confirm scope before treating as “broken” vs “not built yet.”
 
 ---
 
 ## Decisions to preserve
 
-- Do **not** change shared **scoring math**, **`GameResult` / `GameSessionStats`**, **routing contracts**, or **Antonym**/**Association** **results** formulas unless the task explicitly says so.
+- Do **not** change shared **scoring math**, **`GameResult` / `GameSessionStats`**, **routing contracts**, or shipped-mode **results** formulas unless the task explicitly says so.
 - Telemetry stays **`kDebugMode`**, **log-only**, no side effects (`AntonymRoundTelemetry`, `AntonymTapTelemetry`, `[AssociationTelemetry]`).
 - **Antonym:** Keep **4** options all rounds; do not revert to 3-option beginner-only layout.
 - **Association:** Keep **Cubit** authoritative for timers and game end; keep **2** options per round.
+- **Sequencing Memory:** Keep real TTS behind `SequencingAudioService`; mock audio remains the test/dev fallback.
+- **Commas:** UI forwards only `afterTokenIndex`; Cubit decides correctness.
 
 ---
 
@@ -76,8 +115,11 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 1. `flutter analyze`
 2. `flutter test test/antonym_rush_cubit_test.dart`
 3. `flutter test test/association_cubit_test.dart`
-4. Optionally: `flutter test tool/sim_association_60s_session.dart` (longer run)
-5. For UX-sensitive changes: manual pass per [`docs/Testing_Tutorial.md`](../Testing_Tutorial.md)
+4. `flutter test test/sequencing_memory_cubit_test.dart`
+5. `flutter test test/commas_cubit_test.dart`
+6. `flutter test test/commas_text_area_widget_test.dart`
+7. Optionally: `flutter test tool/sim_association_60s_session.dart` (longer run)
+8. For UX-sensitive changes: manual pass per [`docs/testing/Testing_Tutorial.md`](../testing/Testing_Tutorial.md)
 
 ---
 

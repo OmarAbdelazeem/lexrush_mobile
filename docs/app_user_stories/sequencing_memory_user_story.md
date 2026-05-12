@@ -321,15 +321,35 @@ This can help users who find dragging difficult.
 
 Audio is central to this game.
 
-### MVP audio approach
+### Current audio approach
 
-Use text-to-speech or a mock audio service first.
-
-Recommended package:
+Use a replaceable audio-service abstraction. Normal app runtime uses device text-to-speech:
 
 ```text
 flutter_tts
 ```
+
+Tests and deterministic development flows should use mock or controlled audio services.
+
+Current service boundary:
+
+```text
+SequencingAudioService
+  speakSequence(List<String> items)
+  speakItem(String item)
+  stop()
+  pause()
+  resume()
+  isSpeaking
+  progress stream
+  dispose()
+```
+
+Current implementations:
+
+- `DeviceTtsSequencingAudioService` — normal runtime, wraps `flutter_tts`
+- `MockSequencingAudioService` — deterministic mock/dev fallback
+- controlled test doubles — used by Cubit tests when exact playback progress is needed
 
 ### Production audio options
 
@@ -369,6 +389,18 @@ The audio service should support:
 - stop audio on pause/exit
 - avoid overlapping speech
 - notify Cubit when audio finishes
+- emit progress with playback id, spoken count, current item index/text, completion, cancel, and error state
+
+### Debug spoken caption
+
+The UI may show the currently spoken item as a temporary developer caption while listening, but only behind a debug/developer flag such as `showDebugSpokenCaption`.
+
+Rules:
+
+- show at most the current item, never the full sequence;
+- hide it before the arrange phase;
+- do not let the caption drive Cubit logic, scoring, or stage transitions;
+- keep it easy to disable for production polish.
 
 ### Replay behavior
 
@@ -378,7 +410,7 @@ Allow limited replay, such as:
 Replay: 1 left
 ```
 
-Replay may reduce possible bonus score, but should not make the player feel punished too heavily.
+Current V1 tracks replay count but does not subtract points for replay use. Combined recall has no replay.
 
 ---
 
@@ -425,7 +457,7 @@ Perfect Part One: +100
 Perfect Part Two: +100
 Perfect Combined Challenge: +200
 Partial credit: +20 per item in correct position
-Replay used: optional small bonus reduction
+Replay used: tracked, no point reduction in V1
 ```
 
 ### Example
@@ -852,7 +884,7 @@ Do not include yet:
 - cloud progress
 - adaptive AI difficulty
 - complex route animation
-- production audio library
+- custom recorded voice files
 
 Focus first on:
 
@@ -883,9 +915,10 @@ The most important production risk is audio quality. If TTS feels robotic, incon
 
 ## 23. Implementation Strategy
 
-### Version 1: Functional prototype
+### Version 1: Functional implementation
 
-- mock/TTS audio
+- real device TTS behind audio service
+- mock/controlled audio for tests
 - reorder cards
 - submit
 - feedback
@@ -949,7 +982,8 @@ Controls:
 - submit button checks order
 
 Audio:
-- use text-to-speech or a mock audio service first
+- use real device text-to-speech through an audio-service abstraction
+- use mock/controlled audio services for tests
 - show listening state with waveform/speaker animation
 - allow limited replay, such as 1 replay per part
 
@@ -957,7 +991,7 @@ Scoring:
 - perfect part: +100
 - combined perfect: +200
 - partial credit: +20 per correctly positioned item
-- replay can reduce bonus if needed
+- replay count is tracked but does not reduce points in V1
 - results should stay honest
 
 Architecture:

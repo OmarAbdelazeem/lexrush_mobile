@@ -197,19 +197,22 @@ Do **not** render the paragraph as one plain text block and try to detect arbitr
 
 That approach is fragile and hard to make fair.
 
-Instead, render the sentence as tokens.
+The current production approach keeps the best part of token rendering while preserving natural prose:
+
+1. The prompt is still tokenized in data/state.
+2. Each tappable gap still has a stable `afterTokenIndex`.
+3. The Cubit still receives only the tapped gap id and owns correctness.
+4. The UI renders one natural `RichText` sentence, then overlays transparent measured hitboxes at each gap.
+
+This avoids the older “word grid” feeling while keeping deterministic gap taps.
+
+### Internal token concept
 
 Example:
 
 ```text
 The | Taj | Mahal | is | located | in | Agra | India.
 ```
-
-Each word/token should be rendered as a widget. Each gap after a token should be tappable.
-
-The visual result should still look like natural text, but internally the UI should know which gap the user tapped.
-
-### Recommended Concept
 
 Each token has:
 
@@ -239,6 +242,19 @@ gap_after_token_7
 ```
 
 The Cubit should evaluate taps by gap ID or token index, not by screen coordinates.
+
+### Current Renderer
+
+`CommaTextArea` should:
+
+- build one attached-comma text string such as `Agra, India`;
+- render that text as natural prose with normal spacing and wrapping;
+- use `TextPainter` to measure the visual position of each gap;
+- overlay transparent `CommaGapDetector` widgets around those measured spaces;
+- keep hitboxes generous without visually widening the spaces;
+- keep debug hitbox visualization behind a debug-only flag, disabled by default.
+
+This is still token/gap based internally. It is not raw coordinate grammar detection and not runtime AI punctuation detection.
 
 ---
 
@@ -629,7 +645,6 @@ features/
 
         widgets/
           comma_text_area.dart
-          comma_word_token.dart
           comma_gap_detector.dart
           comma_feedback.dart
 ```
@@ -662,8 +677,8 @@ The Cubit should expose state that the UI can render safely.
 
 The UI should:
 
-- render the current sentence as token widgets;
-- create tappable gap zones between words;
+- render the current sentence as natural prose using the measured-hitbox renderer;
+- create transparent tappable gap zones between words;
 - show placed commas inline;
 - show correct/wrong feedback;
 - show score and timer;
@@ -728,7 +743,14 @@ flutter test test/association_cubit_test.dart
 flutter test test/sequencing_memory_cubit_test.dart
 ```
 
-Also run:
+Also run Commas-specific tests:
+
+```text
+flutter test test/commas_cubit_test.dart
+flutter test test/commas_text_area_widget_test.dart
+```
+
+And run:
 
 ```text
 flutter analyze
@@ -820,9 +842,9 @@ Architecture:
 
 Important implementation detail:
 Do not render the paragraph as one plain text block with arbitrary tap coordinates.
-Render it as word/token widgets with tappable gaps between words.
-Each gap should have a generous invisible hitbox.
-The visual text should still look like natural readable prose.
+Render natural prose from tokenized data, then overlay measured tappable gaps between words.
+Each gap should have a generous invisible hitbox based on stable `afterTokenIndex`.
+The visual text should look like normal readable prose, not separated word tiles.
 
 Data:
 Use prompt data with known correct comma insertion positions.

@@ -342,6 +342,42 @@ They solve different problems; use **both** on serious projects.
 
 ---
 
+## LexRush smoke checklist
+
+Use this short checklist after gameplay, routing, result, or visual changes.
+
+### Automated baseline
+
+```bash
+flutter analyze
+flutter test test/antonym_rush_cubit_test.dart
+flutter test test/association_cubit_test.dart
+flutter test test/sequencing_memory_cubit_test.dart
+flutter test test/commas_cubit_test.dart
+flutter test test/commas_text_area_widget_test.dart
+```
+
+### Manual baseline
+
+1. Launch app from a clean or known state.
+2. Open **Mode Selection** and confirm shipped modes are visible:
+   - Antonym Rush
+   - Association
+   - Sequencing Memory
+   - Commas
+3. Confirm **Synonym Storm** and **Definition Match** are still treated as catalog/backlog placeholders unless the current task explicitly wires them end-to-end.
+4. For each shipped mode, run: mode card → pre-game → gameplay → pause/resume if available → results → play again/back to modes.
+5. Capture a screenshot or short recording for any UX-sensitive change.
+
+### Mode-specific manual checks
+
+- **Antonym Rush:** four balloons every round; first five rounds feel fair; missed timing does not fire while the correct balloon still appears tappable.
+- **Association:** two choices; wrong feedback explains the correct link; hard ambiguous prompts show context hints only in hard tier.
+- **Sequencing Memory:** listening hides reorder cards; real TTS speaks one item at a time; replay works once per part; TTS stops on pause, restart, exit, and completion.
+- **Commas:** sentence reads as natural prose; comma attaches to the previous word; all tappable gaps have generous invisible hitboxes; wrong taps show local feedback; review wording is user-friendly.
+
+---
+
 ## Bug report template (copy-paste)
 
 Use this when filing an issue (GitHub, Jira, Slack) so others can reproduce quickly.
