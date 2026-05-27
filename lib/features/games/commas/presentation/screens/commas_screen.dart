@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,9 +8,11 @@ import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_cubit.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_state.dart';
+import 'package:lexrush/features/games/commas/application/services/commas_backend_sync_service.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_difficulty.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_feedback.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_area.dart';
+import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 
 class CommasScreen extends StatefulWidget {
   const CommasScreen({super.key});
@@ -21,6 +25,16 @@ class CommasScreen extends StatefulWidget {
 
 class _CommasScreenState extends State<CommasScreen> {
   bool _navigatedToResults = false;
+  CommasBackendSyncService? _syncService;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_syncService != null) return;
+    _syncService = CommasBackendSyncService(
+      repository: context.read<LexRushBackendRepository>(),
+    )..startSession();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +51,7 @@ class _CommasScreenState extends State<CommasScreen> {
           final result = state.result;
           if (result == null) return;
           _navigatedToResults = true;
+          unawaited(_syncService?.submitResult(result));
           context.go(AppRoutes.results, extra: result);
         },
         builder: (context, state) {
