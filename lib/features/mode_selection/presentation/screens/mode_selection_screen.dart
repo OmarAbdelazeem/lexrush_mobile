@@ -23,9 +23,20 @@ class ModeSelectionScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
-              'Choose Mode',
-              style: Theme.of(context).textTheme.headlineSmall,
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    'Choose Mode',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.go(AppRoutes.profile),
+                  icon: const Icon(Icons.insights_rounded, size: 18),
+                  label: const Text('Progress'),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(

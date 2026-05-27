@@ -8,6 +8,7 @@ import 'package:lexrush/features/games/synonym_storm/presentation/screens/synony
 import 'package:lexrush/features/mode_selection/presentation/screens/mode_selection_screen.dart';
 import 'package:lexrush/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:lexrush/features/pre_game/presentation/screens/pre_game_screen.dart';
+import 'package:lexrush/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lexrush/features/results/presentation/screens/results_screen.dart';
 import 'package:lexrush/features/splash/presentation/screens/splash_screen.dart';
 import 'package:lexrush/shared/domain/entities/game_mode.dart';
@@ -20,6 +21,7 @@ abstract final class AppRoutes {
   static const String preGame = '/pre-game';
   static const String gameplay = '/gameplay';
   static const String results = '/results';
+  static const String profile = '/profile';
 }
 
 abstract final class AppRouter {
@@ -37,6 +39,10 @@ abstract final class AppRouter {
       GoRoute(
         path: AppRoutes.modeSelection,
         builder: (context, state) => const ModeSelectionScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (context, state) => const ProfileScreen(),
       ),
       GoRoute(
         path: '${AppRoutes.preGame}/:mode',
