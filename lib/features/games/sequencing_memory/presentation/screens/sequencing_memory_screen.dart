@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,13 +14,34 @@ import 'package:lexrush/features/games/sequencing_memory/domain/services/sequenc
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_listen_panel.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_reorder_area.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_route_background.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
+import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/presentation/widgets/primary_button.dart';
 import 'package:lexrush/shared/presentation/widgets/score_display.dart';
 
-class SequencingMemoryScreen extends StatelessWidget {
+class SequencingMemoryScreen extends StatefulWidget {
   const SequencingMemoryScreen({super.key});
 
   static const bool showDebugSpokenCaption = kDebugMode;
+
+  @override
+  State<SequencingMemoryScreen> createState() => _SequencingMemoryScreenState();
+}
+
+class _SequencingMemoryScreenState extends State<SequencingMemoryScreen> {
+  BackendResultSyncService? _syncService;
+  bool _navigatedToResults = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_syncService != null) return;
+    _syncService = BackendResultSyncService(
+      gameId: BackendGameIds.sequencingMemory,
+      repository: context.read<LexRushBackendRepository>(),
+    )..startSession();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +51,16 @@ class SequencingMemoryScreen extends StatelessWidget {
             ..start(),
       child: BlocConsumer<SequencingMemoryCubit, SequencingMemoryState>(
         listener: (BuildContext context, SequencingMemoryState state) {
-          if (state.stage == SequencingStage.finished && state.result != null) {
+          if (!_navigatedToResults &&
+              state.stage == SequencingStage.finished &&
+              state.result != null) {
             debugPrint('[SequencingMemoryScreen] session ended -> go results');
+            _navigatedToResults = true;
+            unawaited(
+              _syncService?.submitSummary(
+                BackendResultMappers.sequencingMemory(state.result!),
+              ),
+            );
             context.go(AppRoutes.results, extra: state.result);
           }
         },

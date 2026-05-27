@@ -7,9 +7,13 @@ import 'package:lexrush/core/network/api_auth_headers_provider.dart';
 import 'package:lexrush/core/network/api_client.dart';
 import 'package:lexrush/core/network/api_config.dart';
 import 'package:lexrush/core/network/api_exception.dart';
-import 'package:lexrush/features/games/commas/application/services/commas_backend_sync_service.dart';
+import 'package:lexrush/features/games/association/domain/entities/association_game_result.dart';
+import 'package:lexrush/features/games/association/domain/entities/association_round_result.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_round_result.dart';
 import 'package:lexrush/features/games/commas/domain/entities/commas_game_result.dart';
+import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_game_result.dart';
+import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_round_result.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
@@ -247,28 +251,116 @@ void main() {
     });
   });
 
-  group('Commas result sync mapping', () {
-    test('uses decimal accuracy and maps wrong taps as wrong answers', () {
+  group('Backend result mappings', () {
+    test('maps Antonym Rush summary fields', () {
+      final SubmitGameResultRequest request = BackendResultMappers.antonymRush(
+        _gameResult(
+          score: 500,
+          accuracy: 80,
+          totalAttempts: 10,
+          correctAnswers: 8,
+          missedWords: 1,
+          wordsSolved: 8,
+          bestCombo: 4,
+          averageResponseTimeMs: 1200,
+        ),
+      );
+
+      expect(request.toJson(), <String, dynamic>{
+        'score': 500,
+        'accuracy': 0.8,
+        'totalAttempts': 10,
+        'correctAnswers': 8,
+        'wrongAnswers': 1,
+        'missedAnswers': 1,
+        'wordsSolved': 8,
+        'bestCombo': 4,
+        'averageResponseTimeMs': 1200,
+      });
+    });
+
+    test('maps Association summary fields', () {
+      final SubmitGameResultRequest request = BackendResultMappers.association(
+        AssociationGameResult(
+          summary: _gameResult(
+            score: 700,
+            accuracy: 70,
+            totalAttempts: 10,
+            correctAnswers: 7,
+            missedWords: 2,
+            wordsSolved: 7,
+            bestCombo: 3,
+            averageResponseTimeMs: 1500,
+          ),
+          review: const <AssociationRoundResult>[],
+        ),
+      );
+
+      expect(request.toJson(), <String, dynamic>{
+        'score': 700,
+        'accuracy': 0.7,
+        'totalAttempts': 10,
+        'correctAnswers': 7,
+        'wrongAnswers': 1,
+        'missedAnswers': 2,
+        'wordsSolved': 7,
+        'bestCombo': 3,
+        'averageResponseTimeMs': 1500,
+      });
+    });
+
+    test('maps Sequencing Memory routes and stage stats', () {
       final SubmitGameResultRequest request =
-          CommasBackendSyncService.buildSummaryRequest(
-            const CommasGameResult(
-              summary: GameResult(
-                stats: GameSessionStats(
-                  score: 200,
-                  accuracy: 50,
-                  bestCombo: 1,
-                  xpEarned: 5,
-                  totalAttempts: 2,
-                  correctAnswers: 1,
-                  wordsSolved: 1,
-                  missedWords: 1,
-                  averageResponseTimeMs: 3000,
-                ),
-                replayGoal: ReplayGoal('Again'),
+          BackendResultMappers.sequencingMemory(
+            SequencingGameResult(
+              summary: _gameResult(
+                score: 360,
+                accuracy: 90,
+                totalAttempts: 9,
+                correctAnswers: 6,
+                missedWords: 3,
+                wordsSolved: 6,
+                bestCombo: 6,
+                averageResponseTimeMs: 4200,
               ),
-              review: <CommaRoundResult>[],
+              review: const <SequencingRoundResult>[],
+              sequencesCompleted: 3,
+              perfectStages: 6,
+              longestSequenceRemembered: 5,
+              replayCount: 1,
+              averageRecallTimeMs: 4200,
             ),
           );
+
+      expect(request.toJson(), <String, dynamic>{
+        'score': 360,
+        'accuracy': 0.9,
+        'totalAttempts': 9,
+        'correctAnswers': 6,
+        'wrongAnswers': 3,
+        'missedAnswers': 0,
+        'wordsSolved': 3,
+        'bestCombo': 6,
+        'averageResponseTimeMs': 4200,
+      });
+    });
+
+    test('maps Commas wrong taps as wrong answers', () {
+      final SubmitGameResultRequest request = BackendResultMappers.commas(
+        CommasGameResult(
+          summary: _gameResult(
+            score: 200,
+            accuracy: 50,
+            totalAttempts: 2,
+            correctAnswers: 1,
+            missedWords: 1,
+            wordsSolved: 1,
+            bestCombo: 1,
+            averageResponseTimeMs: 3000,
+          ),
+          review: const <CommaRoundResult>[],
+        ),
+      );
 
       expect(request.toJson(), <String, dynamic>{
         'score': 200,
@@ -283,4 +375,30 @@ void main() {
       });
     });
   });
+}
+
+GameResult _gameResult({
+  required int score,
+  required int accuracy,
+  required int totalAttempts,
+  required int correctAnswers,
+  required int missedWords,
+  required int wordsSolved,
+  required int bestCombo,
+  required int averageResponseTimeMs,
+}) {
+  return GameResult(
+    stats: GameSessionStats(
+      score: score,
+      accuracy: accuracy,
+      bestCombo: bestCombo,
+      xpEarned: 0,
+      totalAttempts: totalAttempts,
+      correctAnswers: correctAnswers,
+      wordsSolved: wordsSolved,
+      missedWords: missedWords,
+      averageResponseTimeMs: averageResponseTimeMs,
+    ),
+    replayGoal: const ReplayGoal('Again'),
+  );
 }

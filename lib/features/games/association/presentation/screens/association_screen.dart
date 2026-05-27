@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show PathMetric, Tangent;
 
@@ -10,12 +11,33 @@ import 'package:lexrush/features/games/association/application/cubit/association
 import 'package:lexrush/features/games/association/application/cubit/association_state.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_option.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_outcome.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
+import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/presentation/widgets/combo_meter.dart';
 import 'package:lexrush/shared/presentation/widgets/game_timer.dart';
 import 'package:lexrush/shared/presentation/widgets/score_display.dart';
 
-class AssociationScreen extends StatelessWidget {
+class AssociationScreen extends StatefulWidget {
   const AssociationScreen({super.key});
+
+  @override
+  State<AssociationScreen> createState() => _AssociationScreenState();
+}
+
+class _AssociationScreenState extends State<AssociationScreen> {
+  BackendResultSyncService? _syncService;
+  bool _navigatedToResults = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_syncService != null) return;
+    _syncService = BackendResultSyncService(
+      gameId: BackendGameIds.association,
+      repository: context.read<LexRushBackendRepository>(),
+    )..startSession();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +45,16 @@ class AssociationScreen extends StatelessWidget {
       create: (_) => AssociationCubit()..start(),
       child: BlocConsumer<AssociationCubit, AssociationState>(
         listener: (BuildContext context, AssociationState state) {
-          if (state.status == AssociationStatus.finished &&
+          if (!_navigatedToResults &&
+              state.status == AssociationStatus.finished &&
               state.result != null) {
             debugPrint('[AssociationScreen] session ended -> go results');
+            _navigatedToResults = true;
+            unawaited(
+              _syncService?.submitSummary(
+                BackendResultMappers.association(state.result!),
+              ),
+            );
             context.go(AppRoutes.results, extra: state.result);
           }
         },
@@ -376,7 +405,8 @@ class _AssociationGraphState extends State<_AssociationGraph>
                           idlePulse: idleAmbient,
                           correctReveal:
                               feedbackActive &&
-                              state.lastOutcome == AssociationOutcome.correct
+                                  state.lastOutcome ==
+                                      AssociationOutcome.correct
                               ? correctProgress
                               : 0,
                         ),
@@ -700,10 +730,7 @@ class _RootNode extends StatelessWidget {
                 ),
                 if (contextHint != null && contextHint!.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 6),
-                  _ContextHintPill(
-                    text: contextHint!,
-                    breath: idlePulse,
-                  ),
+                  _ContextHintPill(text: contextHint!, breath: idlePulse),
                 ],
               ],
             ),
@@ -933,7 +960,8 @@ class _LinkPainter extends CustomPainter {
 
     final double glowAlpha = state == _ConnectionState.idle
         ? 0.10
-        : 0.32 + (state == _ConnectionState.wrong ? flash * 0.30 : 0) +
+        : 0.32 +
+              (state == _ConnectionState.wrong ? flash * 0.30 : 0) +
               (state == _ConnectionState.correct ? correct * 0.18 : 0);
     final double lineAlpha = state == _ConnectionState.idle ? 0.34 : 0.95;
     final double glowStroke =

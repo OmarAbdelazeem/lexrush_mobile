@@ -8,10 +8,11 @@ import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_cubit.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_state.dart';
-import 'package:lexrush/features/games/commas/application/services/commas_backend_sync_service.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_difficulty.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_feedback.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_area.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 
 class CommasScreen extends StatefulWidget {
@@ -25,13 +26,14 @@ class CommasScreen extends StatefulWidget {
 
 class _CommasScreenState extends State<CommasScreen> {
   bool _navigatedToResults = false;
-  CommasBackendSyncService? _syncService;
+  BackendResultSyncService? _syncService;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_syncService != null) return;
-    _syncService = CommasBackendSyncService(
+    _syncService = BackendResultSyncService(
+      gameId: BackendGameIds.commas,
       repository: context.read<LexRushBackendRepository>(),
     )..startSession();
   }
@@ -51,7 +53,9 @@ class _CommasScreenState extends State<CommasScreen> {
           final result = state.result;
           if (result == null) return;
           _navigatedToResults = true;
-          unawaited(_syncService?.submitResult(result));
+          unawaited(
+            _syncService?.submitSummary(BackendResultMappers.commas(result)),
+          );
           context.go(AppRoutes.results, extra: result);
         },
         builder: (context, state) {

@@ -9,6 +9,9 @@ import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/features/games/antonym_rush/application/cubit/antonym_rush_cubit.dart';
 import 'package:lexrush/features/games/antonym_rush/application/cubit/antonym_rush_state.dart';
 import 'package:lexrush/features/games/antonym_rush/domain/entities/balloon_option.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
+import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/presentation/widgets/combo_meter.dart';
 import 'package:lexrush/shared/presentation/widgets/game_timer.dart';
 import 'package:lexrush/shared/presentation/widgets/score_display.dart';
@@ -33,6 +36,18 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
   Timer? _feedbackLatchTimer;
   String? _latchedFeedbackText;
   RoundOutcome? _latchedFeedbackOutcome;
+  BackendResultSyncService? _syncService;
+  bool _navigatedToResults = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_syncService != null) return;
+    _syncService = BackendResultSyncService(
+      gameId: BackendGameIds.antonymRush,
+      repository: context.read<LexRushBackendRepository>(),
+    )..startSession();
+  }
 
   @override
   void dispose() {
@@ -97,8 +112,16 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
       create: (_) => AntonymRushCubit()..start(),
       child: BlocConsumer<AntonymRushCubit, AntonymRushState>(
         listener: (BuildContext context, AntonymRushState state) {
-          if (state.status == AntonymRushStatus.ended) {
+          if (!_navigatedToResults &&
+              state.status == AntonymRushStatus.ended &&
+              state.gameResult != null) {
             debugPrint('[AntonymRushScreen] session ended -> go results');
+            _navigatedToResults = true;
+            unawaited(
+              _syncService?.submitSummary(
+                BackendResultMappers.antonymRush(state.gameResult!),
+              ),
+            );
             context.go(AppRoutes.results, extra: state.gameResult);
           }
         },
