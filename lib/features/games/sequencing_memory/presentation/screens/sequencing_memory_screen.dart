@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,6 +15,7 @@ import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/se
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 import 'package:lexrush/shared/presentation/widgets/primary_button.dart';
 import 'package:lexrush/shared/presentation/widgets/score_display.dart';
 
@@ -56,12 +55,19 @@ class _SequencingMemoryScreenState extends State<SequencingMemoryScreen> {
               state.result != null) {
             debugPrint('[SequencingMemoryScreen] session ended -> go results');
             _navigatedToResults = true;
-            unawaited(
-              _syncService?.submitSummary(
-                BackendResultMappers.sequencingMemory(state.result!),
-              ),
+            final BackendResultSyncHandle? syncHandle = _syncService
+                ?.submitSummaryWithHandle(
+                  BackendResultMappers.sequencingMemory(state.result!),
+                );
+            context.go(
+              AppRoutes.results,
+              extra: syncHandle == null
+                  ? state.result
+                  : SyncedResultExtra(
+                      result: state.result!,
+                      syncHandle: syncHandle,
+                    ),
             );
-            context.go(AppRoutes.results, extra: state.result);
           }
         },
         builder: (BuildContext context, SequencingMemoryState state) {

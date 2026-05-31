@@ -3,20 +3,24 @@ import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_round_result.dart';
 import 'package:lexrush/features/games/commas/domain/entities/commas_game_result.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/presentation/widgets/primary_button.dart';
 import 'package:lexrush/shared/presentation/widgets/result_stat_tile.dart';
+import 'package:lexrush/shared/presentation/widgets/result_sync_status_banner.dart';
 
 class CommasResultsScreen extends StatelessWidget {
   const CommasResultsScreen({
     required this.result,
     required this.onPlayAgain,
     required this.onBackToModes,
+    this.syncHandle,
     super.key,
   });
 
   final CommasGameResult result;
   final VoidCallback onPlayAgain;
   final VoidCallback onBackToModes;
+  final BackendResultSyncHandle? syncHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +98,8 @@ class CommasResultsScreen extends StatelessWidget {
               value: '+${stats.xpEarned}',
               icon: Icons.workspace_premium_outlined,
             ),
+            const SizedBox(height: 10),
+            ResultSyncStatusBanner(syncHandle: syncHandle),
             const SizedBox(height: 18),
             Text(
               result.summary.replayGoal.message,

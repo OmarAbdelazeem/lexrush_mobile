@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
 import 'package:lexrush/shared/presentation/widgets/primary_button.dart';
 import 'package:lexrush/shared/presentation/widgets/result_stat_tile.dart';
+import 'package:lexrush/shared/presentation/widgets/result_sync_status_banner.dart';
 
 class BaseResultsScreen extends StatefulWidget {
   const BaseResultsScreen({
     required this.result,
     required this.onPlayAgain,
     required this.onBackToModes,
+    this.syncHandle,
     super.key,
   });
 
   final GameResult result;
   final VoidCallback onPlayAgain;
   final VoidCallback onBackToModes;
+  final BackendResultSyncHandle? syncHandle;
 
   @override
   State<BaseResultsScreen> createState() => _BaseResultsScreenState();
@@ -44,12 +48,12 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
     final String encouragement = widget.result.stats.accuracy >= 90
         ? "Perfect accuracy! You're a word master."
         : widget.result.stats.accuracy >= 70
-            ? 'Great job! Keep up the momentum.'
-            : widget.result.stats.accuracy < 60
-                ? 'Good start - your speed will improve fast.'
-            : widget.result.stats.wordsSolved >= 10
-                ? "Good effort! You're improving."
-                : 'Keep practicing to boost your score.';
+        ? 'Great job! Keep up the momentum.'
+        : widget.result.stats.accuracy < 60
+        ? 'Good start - your speed will improve fast.'
+        : widget.result.stats.wordsSolved >= 10
+        ? "Good effort! You're improving."
+        : 'Keep practicing to boost your score.';
 
     return PortraitShell(
       title: 'Results',
@@ -59,11 +63,7 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             const SizedBox(height: 6),
-            Icon(
-              Icons.emoji_events_rounded,
-              size: 56,
-              color: AppColors.reward,
-            ),
+            Icon(Icons.emoji_events_rounded, size: 56, color: AppColors.reward),
             const SizedBox(height: 8),
             Text(
               'Round Complete!',
@@ -108,7 +108,8 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
             const SizedBox(height: 10),
             ResultStatTile(
               label: 'Avg Response',
-              value: '${(widget.result.stats.averageResponseTimeMs / 1000).toStringAsFixed(1)}s',
+              value:
+                  '${(widget.result.stats.averageResponseTimeMs / 1000).toStringAsFixed(1)}s',
               icon: Icons.timer_outlined,
             ),
             const SizedBox(height: 10),
@@ -117,6 +118,8 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
               value: '+${widget.result.stats.xpEarned}',
               icon: Icons.workspace_premium_outlined,
             ),
+            const SizedBox(height: 10),
+            ResultSyncStatusBanner(syncHandle: widget.syncHandle),
             const SizedBox(height: 18),
             Text(
               encouragement,
@@ -126,9 +129,9 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
             const SizedBox(height: 8),
             Text(
               widget.result.replayGoal.message,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.accent,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppColors.accent),
               textAlign: TextAlign.center,
             ),
             const Spacer(),

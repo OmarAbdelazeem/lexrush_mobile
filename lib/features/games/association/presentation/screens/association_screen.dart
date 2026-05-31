@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show PathMetric, Tangent;
 
@@ -14,6 +13,7 @@ import 'package:lexrush/features/games/association/domain/entities/association_o
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 import 'package:lexrush/shared/presentation/widgets/combo_meter.dart';
 import 'package:lexrush/shared/presentation/widgets/game_timer.dart';
 import 'package:lexrush/shared/presentation/widgets/score_display.dart';
@@ -50,12 +50,19 @@ class _AssociationScreenState extends State<AssociationScreen> {
               state.result != null) {
             debugPrint('[AssociationScreen] session ended -> go results');
             _navigatedToResults = true;
-            unawaited(
-              _syncService?.submitSummary(
-                BackendResultMappers.association(state.result!),
-              ),
+            final BackendResultSyncHandle? syncHandle = _syncService
+                ?.submitSummaryWithHandle(
+                  BackendResultMappers.association(state.result!),
+                );
+            context.go(
+              AppRoutes.results,
+              extra: syncHandle == null
+                  ? state.result
+                  : SyncedResultExtra(
+                      result: state.result!,
+                      syncHandle: syncHandle,
+                    ),
             );
-            context.go(AppRoutes.results, extra: state.result);
           }
         },
         builder: (BuildContext context, AssociationState state) {

@@ -7,9 +7,11 @@ import 'package:lexrush/features/games/commas/domain/entities/commas_game_result
 import 'package:lexrush/features/games/commas/presentation/screens/commas_results_screen.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_game_result.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/screens/sequencing_memory_results_screen.dart';
+import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/domain/entities/game_mode.dart';
 import 'package:lexrush/shared/domain/entities/game_mode_codec.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
+import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 import 'package:lexrush/shared/presentation/widgets/base_results_screen.dart';
 
 class ResultsScreen extends StatelessWidget {
@@ -17,35 +19,57 @@ class ResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Object? extra = GoRouterState.of(context).extra;
+    final Object? routeExtra = GoRouterState.of(context).extra;
+    final Object? extra = routeExtra is SyncedResultExtra
+        ? routeExtra.result
+        : routeExtra;
+    final BackendResultSyncHandle? syncHandle = routeExtra is SyncedResultExtra
+        ? routeExtra.syncHandle
+        : null;
+
+    Widget wrapWithHandle(Widget child) {
+      final BackendResultSyncHandle? handle = syncHandle;
+      if (handle == null) return child;
+      return _SyncHandleDisposer(syncHandle: handle, child: child);
+    }
+
     if (extra is AssociationGameResult) {
       debugPrint('[ResultsScreen] rendering association-result');
-      return AssociationResultsScreen(
-        result: extra,
-        onPlayAgain: () => context.go(
-          '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.association)}',
+      return wrapWithHandle(
+        AssociationResultsScreen(
+          result: extra,
+          syncHandle: syncHandle,
+          onPlayAgain: () => context.go(
+            '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.association)}',
+          ),
+          onBackToModes: () => context.go(AppRoutes.modeSelection),
         ),
-        onBackToModes: () => context.go(AppRoutes.modeSelection),
       );
     }
     if (extra is SequencingGameResult) {
       debugPrint('[ResultsScreen] rendering sequencing-memory-result');
-      return SequencingMemoryResultsScreen(
-        result: extra,
-        onPlayAgain: () => context.go(
-          '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.sequencingMemory)}',
+      return wrapWithHandle(
+        SequencingMemoryResultsScreen(
+          result: extra,
+          syncHandle: syncHandle,
+          onPlayAgain: () => context.go(
+            '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.sequencingMemory)}',
+          ),
+          onBackToModes: () => context.go(AppRoutes.modeSelection),
         ),
-        onBackToModes: () => context.go(AppRoutes.modeSelection),
       );
     }
     if (extra is CommasGameResult) {
       debugPrint('[ResultsScreen] rendering commas-result');
-      return CommasResultsScreen(
-        result: extra,
-        onPlayAgain: () => context.go(
-          '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.commas)}',
+      return wrapWithHandle(
+        CommasResultsScreen(
+          result: extra,
+          syncHandle: syncHandle,
+          onPlayAgain: () => context.go(
+            '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.commas)}',
+          ),
+          onBackToModes: () => context.go(AppRoutes.modeSelection),
         ),
-        onBackToModes: () => context.go(AppRoutes.modeSelection),
       );
     }
     if (extra is! GameResult) {
@@ -61,12 +85,36 @@ class ResultsScreen extends StatelessWidget {
     }
     debugPrint('[ResultsScreen] rendering session-result');
 
-    return BaseResultsScreen(
-      result: extra,
-      onPlayAgain: () => context.go(
-        '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.antonymRush)}',
+    return wrapWithHandle(
+      BaseResultsScreen(
+        result: extra,
+        syncHandle: syncHandle,
+        onPlayAgain: () => context.go(
+          '${AppRoutes.preGame}/${GameModeCodec.toPath(GameMode.antonymRush)}',
+        ),
+        onBackToModes: () => context.go(AppRoutes.modeSelection),
       ),
-      onBackToModes: () => context.go(AppRoutes.modeSelection),
     );
   }
+}
+
+class _SyncHandleDisposer extends StatefulWidget {
+  const _SyncHandleDisposer({required this.syncHandle, required this.child});
+
+  final BackendResultSyncHandle syncHandle;
+  final Widget child;
+
+  @override
+  State<_SyncHandleDisposer> createState() => _SyncHandleDisposerState();
+}
+
+class _SyncHandleDisposerState extends State<_SyncHandleDisposer> {
+  @override
+  void dispose() {
+    widget.syncHandle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -12,6 +12,7 @@ import 'package:lexrush/features/games/antonym_rush/domain/entities/balloon_opti
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 import 'package:lexrush/shared/presentation/widgets/combo_meter.dart';
 import 'package:lexrush/shared/presentation/widgets/game_timer.dart';
 import 'package:lexrush/shared/presentation/widgets/score_display.dart';
@@ -117,12 +118,19 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
               state.gameResult != null) {
             debugPrint('[AntonymRushScreen] session ended -> go results');
             _navigatedToResults = true;
-            unawaited(
-              _syncService?.submitSummary(
-                BackendResultMappers.antonymRush(state.gameResult!),
-              ),
+            final BackendResultSyncHandle? syncHandle = _syncService
+                ?.submitSummaryWithHandle(
+                  BackendResultMappers.antonymRush(state.gameResult!),
+                );
+            context.go(
+              AppRoutes.results,
+              extra: syncHandle == null
+                  ? state.gameResult
+                  : SyncedResultExtra(
+                      result: state.gameResult!,
+                      syncHandle: syncHandle,
+                    ),
             );
-            context.go(AppRoutes.results, extra: state.gameResult);
           }
         },
         builder: (BuildContext context, AntonymRushState state) {

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +12,7 @@ import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_ar
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 
 class CommasScreen extends StatefulWidget {
   const CommasScreen({super.key});
@@ -53,10 +52,14 @@ class _CommasScreenState extends State<CommasScreen> {
           final result = state.result;
           if (result == null) return;
           _navigatedToResults = true;
-          unawaited(
-            _syncService?.submitSummary(BackendResultMappers.commas(result)),
+          final BackendResultSyncHandle? syncHandle = _syncService
+              ?.submitSummaryWithHandle(BackendResultMappers.commas(result));
+          context.go(
+            AppRoutes.results,
+            extra: syncHandle == null
+                ? result
+                : SyncedResultExtra(result: result, syncHandle: syncHandle),
           );
-          context.go(AppRoutes.results, extra: result);
         },
         builder: (context, state) {
           return PortraitShell(
