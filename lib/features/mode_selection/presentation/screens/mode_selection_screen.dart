@@ -32,7 +32,7 @@ class ModeSelectionScreen extends StatelessWidget {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => context.go(AppRoutes.profile),
+                  onPressed: () => context.push(AppRoutes.profile),
                   icon: const Icon(Icons.insights_rounded, size: 18),
                   label: const Text('Progress'),
                 ),
