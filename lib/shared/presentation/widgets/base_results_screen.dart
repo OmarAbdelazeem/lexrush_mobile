@@ -57,92 +57,112 @@ class _BaseResultsScreenState extends State<BaseResultsScreen> {
 
     return PortraitShell(
       title: 'Results',
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            const SizedBox(height: 6),
-            Icon(Icons.emoji_events_rounded, size: 56, color: AppColors.reward),
-            const SizedBox(height: 8),
-            Text(
-              'Round Complete!',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight > 40
+                    ? constraints.maxHeight - 40
+                    : 0,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const SizedBox(height: 6),
+                    Icon(
+                      Icons.emoji_events_rounded,
+                      size: 56,
+                      color: AppColors.reward,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Round Complete!',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$_displayScore',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    Text(
+                      'Final Score',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ResultStatTile(
+                      label: 'Accuracy',
+                      value: '${widget.result.stats.accuracy}%',
+                      icon: Icons.track_changes_rounded,
+                    ),
+                    const SizedBox(height: 10),
+                    ResultStatTile(
+                      label: 'Best Combo',
+                      value: '${widget.result.stats.bestCombo}x',
+                      icon: Icons.local_fire_department_rounded,
+                    ),
+                    const SizedBox(height: 10),
+                    ResultStatTile(
+                      label: 'Words Solved',
+                      value: '${widget.result.stats.wordsSolved}',
+                      icon: Icons.menu_book_rounded,
+                    ),
+                    const SizedBox(height: 10),
+                    ResultStatTile(
+                      label: 'Missed Words',
+                      value: '${widget.result.stats.missedWords}',
+                      icon: Icons.error_outline_rounded,
+                    ),
+                    const SizedBox(height: 10),
+                    ResultStatTile(
+                      label: 'Avg Response',
+                      value:
+                          '${(widget.result.stats.averageResponseTimeMs / 1000).toStringAsFixed(1)}s',
+                      icon: Icons.timer_outlined,
+                    ),
+                    const SizedBox(height: 10),
+                    ResultStatTile(
+                      label: 'XP Earned',
+                      value: '+${widget.result.stats.xpEarned}',
+                      icon: Icons.workspace_premium_outlined,
+                    ),
+                    const SizedBox(height: 10),
+                    ResultSyncStatusBanner(syncHandle: widget.syncHandle),
+                    const SizedBox(height: 18),
+                    Text(
+                      encouragement,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.result.replayGoal.message,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: AppColors.accent),
+                      textAlign: TextAlign.center,
+                    ),
+                    const Spacer(),
+                    PrimaryButton(
+                      label: 'Play Again',
+                      onPressed: widget.onPlayAgain,
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: widget.onBackToModes,
+                      child: const Text('Back To Modes'),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              '$_displayScore',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            Text(
-              'Final Score',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ResultStatTile(
-              label: 'Accuracy',
-              value: '${widget.result.stats.accuracy}%',
-              icon: Icons.track_changes_rounded,
-            ),
-            const SizedBox(height: 10),
-            ResultStatTile(
-              label: 'Best Combo',
-              value: '${widget.result.stats.bestCombo}x',
-              icon: Icons.local_fire_department_rounded,
-            ),
-            const SizedBox(height: 10),
-            ResultStatTile(
-              label: 'Words Solved',
-              value: '${widget.result.stats.wordsSolved}',
-              icon: Icons.menu_book_rounded,
-            ),
-            const SizedBox(height: 10),
-            ResultStatTile(
-              label: 'Missed Words',
-              value: '${widget.result.stats.missedWords}',
-              icon: Icons.error_outline_rounded,
-            ),
-            const SizedBox(height: 10),
-            ResultStatTile(
-              label: 'Avg Response',
-              value:
-                  '${(widget.result.stats.averageResponseTimeMs / 1000).toStringAsFixed(1)}s',
-              icon: Icons.timer_outlined,
-            ),
-            const SizedBox(height: 10),
-            ResultStatTile(
-              label: 'XP Earned',
-              value: '+${widget.result.stats.xpEarned}',
-              icon: Icons.workspace_premium_outlined,
-            ),
-            const SizedBox(height: 10),
-            ResultSyncStatusBanner(syncHandle: widget.syncHandle),
-            const SizedBox(height: 18),
-            Text(
-              encouragement,
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.result.replayGoal.message,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: AppColors.accent),
-              textAlign: TextAlign.center,
-            ),
-            const Spacer(),
-            PrimaryButton(label: 'Play Again', onPressed: widget.onPlayAgain),
-            const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: widget.onBackToModes,
-              child: const Text('Back To Modes'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
