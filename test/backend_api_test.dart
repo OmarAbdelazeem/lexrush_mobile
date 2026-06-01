@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:lexrush/core/auth/auth_tokens.dart';
+import 'package:lexrush/core/auth/token_store.dart';
 import 'package:lexrush/core/network/api_auth_headers_provider.dart';
 import 'package:lexrush/core/network/api_client.dart';
 import 'package:lexrush/core/network/api_config.dart';
 import 'package:lexrush/core/network/api_exception.dart';
+import 'package:lexrush/core/network/request_auth_policy.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_game_result.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_round_result.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_round_result.dart';
@@ -108,116 +111,119 @@ void main() {
   });
 
   group('ApiClient and repository', () {
-    test(
-      'sends centralized dev-user header and maps repository calls',
-      () async {
-        final List<http.Request> requests = <http.Request>[];
-        final ApiClient client = ApiClient(
-          config: const ApiConfig(baseUrl: 'http://example.test'),
-          authHeadersProvider: ApiAuthHeadersProvider.dev(),
-          httpClient: MockClient((http.Request request) async {
-            requests.add(request);
-            if (request.url.path == '/game-sessions') {
-              expect(jsonDecode(request.body), <String, dynamic>{
-                'gameId': 'commas',
-              });
-              return http.Response(
-                jsonEncode(<String, dynamic>{
-                  'sessionId': 'session-1',
-                  'gameId': 'commas',
-                  'difficulty': 1,
-                  'status': 'created',
-                  'timeLimitSeconds': 60,
-                  'contentVersion': 'v1',
-                  'prompts': <dynamic>[],
-                }),
-                201,
-              );
-            }
-            if (request.url.path == '/game-sessions/session-1/results') {
-              final Map<String, dynamic> body =
-                  jsonDecode(request.body) as Map<String, dynamic>;
-              expect(body['accuracy'], 0.5);
-              expect(body.containsKey('answerEvents'), isFalse);
-              return http.Response(
-                jsonEncode(<String, dynamic>{
-                  'resultId': 'result-1',
-                  'sessionId': 'session-1',
-                  'gameId': 'commas',
-                  'score': 200,
-                  'accuracy': 0.5,
-                  'xpEarned': 22,
-                  'totalAttempts': 2,
-                  'correctAnswers': 1,
-                  'wrongAnswers': 1,
-                  'missedAnswers': 0,
-                  'createdAt': '2026-05-27T12:00:00.000Z',
-                }),
-                201,
-              );
-            }
-            if (request.url.path == '/me/progress') {
-              return http.Response(
-                jsonEncode(<String, dynamic>{
-                  'userId': 'dev-user-001',
-                  'totalXp': 22,
-                  'currentStreak': 1,
-                  'longestStreak': 1,
-                  'lastTrainingDay': '2026-05-27',
-                  'sessionsCompleted': 1,
-                }),
-                200,
-              );
-            }
-            if (request.url.path == '/me/skills') {
-              return http.Response(
-                jsonEncode(<String, dynamic>{
-                  'userId': 'dev-user-001',
-                  'skills': <dynamic>[],
-                }),
-                200,
-              );
-            }
-            return http.Response('{}', 404);
-          }),
-        );
-        final LexRushBackendRepository repository = LexRushBackendRepository(
-          apiClient: client,
-        );
-
-        final CreateGameSessionResponse session = await repository
-            .createGameSession('commas');
-        await repository.submitGameResult(
-          session.sessionId,
-          const SubmitGameResultRequest(
-            score: 200,
-            accuracy: 0.5,
-            totalAttempts: 2,
-            correctAnswers: 1,
-            wrongAnswers: 1,
-            missedAnswers: 0,
-            wordsSolved: 1,
-            bestCombo: 1,
-            averageResponseTimeMs: 3000,
-          ),
-        );
-        await repository.getMyProgress();
-        await repository.getMySkills();
-
-        expect(
-          requests.every(
-            (http.Request request) =>
-                request.headers['x-dev-user-id'] == 'dev-user-001',
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test('parses backend error envelopes', () async {
+    test('sends centralized bearer auth and maps repository calls', () async {
+      final _FakeTokenStore tokenStore = _FakeTokenStore(
+        const AuthTokens(accessToken: 'access-1', refreshToken: 'refresh-1'),
+      );
+      final List<http.Request> requests = <http.Request>[];
       final ApiClient client = ApiClient(
         config: const ApiConfig(baseUrl: 'http://example.test'),
-        authHeadersProvider: ApiAuthHeadersProvider.dev(),
+        tokenStore: tokenStore,
+        authHeadersProvider: ApiAuthHeadersProvider(tokenStore: tokenStore),
+        httpClient: MockClient((http.Request request) async {
+          requests.add(request);
+          if (request.url.path == '/game-sessions') {
+            expect(jsonDecode(request.body), <String, dynamic>{
+              'gameId': 'commas',
+            });
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'sessionId': 'session-1',
+                'gameId': 'commas',
+                'difficulty': 1,
+                'status': 'created',
+                'timeLimitSeconds': 60,
+                'contentVersion': 'v1',
+                'prompts': <dynamic>[],
+              }),
+              201,
+            );
+          }
+          if (request.url.path == '/game-sessions/session-1/results') {
+            final Map<String, dynamic> body =
+                jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['accuracy'], 0.5);
+            expect(body.containsKey('answerEvents'), isFalse);
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'resultId': 'result-1',
+                'sessionId': 'session-1',
+                'gameId': 'commas',
+                'score': 200,
+                'accuracy': 0.5,
+                'xpEarned': 22,
+                'totalAttempts': 2,
+                'correctAnswers': 1,
+                'wrongAnswers': 1,
+                'missedAnswers': 0,
+                'createdAt': '2026-05-27T12:00:00.000Z',
+              }),
+              201,
+            );
+          }
+          if (request.url.path == '/me/progress') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'userId': 'dev-user-001',
+                'totalXp': 22,
+                'currentStreak': 1,
+                'longestStreak': 1,
+                'lastTrainingDay': '2026-05-27',
+                'sessionsCompleted': 1,
+              }),
+              200,
+            );
+          }
+          if (request.url.path == '/me/skills') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'userId': 'dev-user-001',
+                'skills': <dynamic>[],
+              }),
+              200,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+      final LexRushBackendRepository repository = LexRushBackendRepository(
+        apiClient: client,
+      );
+
+      final CreateGameSessionResponse session = await repository
+          .createGameSession('commas');
+      await repository.submitGameResult(
+        session.sessionId,
+        const SubmitGameResultRequest(
+          score: 200,
+          accuracy: 0.5,
+          totalAttempts: 2,
+          correctAnswers: 1,
+          wrongAnswers: 1,
+          missedAnswers: 0,
+          wordsSolved: 1,
+          bestCombo: 1,
+          averageResponseTimeMs: 3000,
+        ),
+      );
+      await repository.getMyProgress();
+      await repository.getMySkills();
+
+      expect(
+        requests.every(
+          (http.Request request) =>
+              request.headers['Authorization'] == 'Bearer access-1',
+        ),
+        isTrue,
+      );
+    });
+
+    test('parses backend error envelopes', () async {
+      final _FakeTokenStore tokenStore = _FakeTokenStore();
+      final ApiClient client = ApiClient(
+        config: const ApiConfig(baseUrl: 'http://example.test'),
+        tokenStore: tokenStore,
+        authHeadersProvider: ApiAuthHeadersProvider(tokenStore: tokenStore),
         httpClient: MockClient((_) async {
           return http.Response(
             jsonEncode(<String, dynamic>{
@@ -232,7 +238,10 @@ void main() {
       );
 
       expect(
-        () => client.post('/game-sessions/session-1/results'),
+        () => client.post(
+          '/game-sessions/session-1/results',
+          authPolicy: RequestAuthPolicy.public,
+        ),
         throwsA(
           isA<ApiException>()
               .having((ApiException e) => e.statusCode, 'statusCode', 409)
@@ -375,6 +384,25 @@ void main() {
       });
     });
   });
+}
+
+class _FakeTokenStore implements TokenStore {
+  _FakeTokenStore([this.tokens]);
+
+  AuthTokens? tokens;
+
+  @override
+  Future<void> clearTokens() async {
+    tokens = null;
+  }
+
+  @override
+  Future<AuthTokens?> readTokens() async => tokens;
+
+  @override
+  Future<void> writeTokens(AuthTokens tokens) async {
+    this.tokens = tokens;
+  }
 }
 
 GameResult _gameResult({

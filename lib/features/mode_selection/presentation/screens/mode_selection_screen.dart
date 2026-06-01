@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
+import 'package:lexrush/features/auth/application/auth_cubit.dart';
+import 'package:lexrush/features/auth/application/auth_state.dart';
 import 'package:lexrush/shared/application/services/game_registry_service.dart';
 import 'package:lexrush/shared/domain/entities/game_definition.dart';
 import 'package:lexrush/shared/domain/entities/game_mode.dart';
@@ -35,6 +38,22 @@ class ModeSelectionScreen extends StatelessWidget {
                   onPressed: () => context.push(AppRoutes.profile),
                   icon: const Icon(Icons.insights_rounded, size: 18),
                   label: const Text('Progress'),
+                ),
+                BlocBuilder<AuthCubit, AuthState>(
+                  builder: (BuildContext context, AuthState state) {
+                    if (state.isAuthenticated) {
+                      return IconButton(
+                        onPressed: () => context.read<AuthCubit>().logout(),
+                        icon: const Icon(Icons.logout_rounded, size: 20),
+                        tooltip: 'Sign out',
+                      );
+                    }
+                    return IconButton(
+                      onPressed: () => context.push(AppRoutes.auth),
+                      icon: const Icon(Icons.person_rounded, size: 20),
+                      tooltip: 'Sign in',
+                    );
+                  },
                 ),
               ],
             ),

@@ -8,7 +8,14 @@ import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
 
-enum BackendSyncPhase { idle, syncing, synced, alreadySynced, failed }
+enum BackendSyncPhase {
+  idle,
+  syncing,
+  synced,
+  alreadySynced,
+  failed,
+  authRequired,
+}
 
 class BackendSyncStatus {
   const BackendSyncStatus({required this.phase, this.xpEarned});
@@ -24,6 +31,9 @@ class BackendSyncStatus {
     : this(phase: BackendSyncPhase.alreadySynced);
 
   const BackendSyncStatus.failed() : this(phase: BackendSyncPhase.failed);
+
+  const BackendSyncStatus.authRequired()
+    : this(phase: BackendSyncPhase.authRequired);
 
   final BackendSyncPhase phase;
   final int? xpEarned;
@@ -105,10 +115,20 @@ class BackendResultSyncService {
       return;
     }
 
+    if (!await _repository.hasAccessToken()) {
+      handle.setStatus(const BackendSyncStatus.authRequired());
+      handle.complete();
+      return;
+    }
+
     final String? sessionId = await (_sessionIdFuture ??= _createSession());
     if (sessionId == null) {
       debugPrint('[BackendResultSync] $_gameId skipped: no backend session');
-      handle.setStatus(const BackendSyncStatus.failed());
+      handle.setStatus(
+        await _repository.hasAccessToken()
+            ? const BackendSyncStatus.failed()
+            : const BackendSyncStatus.authRequired(),
+      );
       handle.complete();
       return;
     }
@@ -133,6 +153,11 @@ class BackendResultSyncService {
         handle.complete();
         return;
       }
+      if (error.isAuthRequired) {
+        handle.setStatus(const BackendSyncStatus.authRequired());
+        handle.complete();
+        return;
+      }
       handle.setStatus(const BackendSyncStatus.failed());
       debugPrint('[BackendResultSync] $_gameId submit failed: $error');
     } on Object catch (error) {
@@ -150,6 +175,12 @@ class BackendResultSyncService {
       _sessionId = response.sessionId;
       debugPrint('[BackendResultSync] $_gameId session created: $_sessionId');
       return _sessionId;
+    } on ApiException catch (error) {
+      if (error.isAuthRequired) return null;
+      debugPrint(
+        '[BackendResultSync] $_gameId session creation failed: $error',
+      );
+      return null;
     } on Object catch (error) {
       debugPrint(
         '[BackendResultSync] $_gameId session creation failed: $error',

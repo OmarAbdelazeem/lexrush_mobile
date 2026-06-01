@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
+import 'package:lexrush/features/auth/application/auth_cubit.dart';
+import 'package:lexrush/features/auth/application/auth_state.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_cubit.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_state.dart';
 import 'package:lexrush/features/profile/data/backend_profile_repository.dart';
@@ -21,7 +24,7 @@ class ProfileScreen extends StatelessWidget {
         repository: BackendProfileRepository(
           context.read<LexRushBackendRepository>(),
         ),
-      )..load(),
+      ),
       child: const _ProfileView(),
     );
   }
@@ -33,37 +36,99 @@ class _ProfileView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PortraitShell(
-      child: BlocBuilder<ProfileCubit, ProfileState>(
-        builder: (BuildContext context, ProfileState state) {
-          return CustomScrollView(
-            slivers: <Widget>[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                  child: _Header(onBack: context.pop),
-                ),
-              ),
-              if (state.status == ProfileStatus.loading ||
-                  state.status == ProfileStatus.initial)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (state.status == ProfileStatus.error)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _ErrorState(
-                    message:
-                        state.errorMessage ??
-                        'Progress is unavailable right now.',
-                    onRetry: context.read<ProfileCubit>().load,
+      child: BlocBuilder<AuthCubit, AuthState>(
+        builder: (BuildContext context, AuthState authState) {
+          final bool isWaitingForAuth =
+              authState.status == AuthStatus.initial ||
+              authState.status == AuthStatus.loading;
+          final bool canLoadProgress = authState.isAuthenticated;
+
+          return BlocBuilder<ProfileCubit, ProfileState>(
+            builder: (BuildContext context, ProfileState state) {
+              if (canLoadProgress && state.status == ProfileStatus.initial) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) {
+                    context.read<ProfileCubit>().load();
+                  }
+                });
+              }
+
+              return CustomScrollView(
+                slivers: <Widget>[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                      child: _Header(onBack: context.pop),
+                    ),
                   ),
-                )
-              else
-                _LoadedProfile(state: state),
-            ],
+                  if (isWaitingForAuth)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (!canLoadProgress)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _SignInPrompt(
+                        onSignIn: () => context.push(AppRoutes.auth),
+                      ),
+                    )
+                  else if (state.status == ProfileStatus.loading ||
+                      state.status == ProfileStatus.initial)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (state.status == ProfileStatus.error)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _ErrorState(
+                        message:
+                            state.errorMessage ??
+                            'Progress is unavailable right now.',
+                        onRetry: context.read<ProfileCubit>().load,
+                      ),
+                    )
+                  else
+                    _LoadedProfile(state: state),
+                ],
+              );
+            },
           );
         },
+      ),
+    );
+  }
+}
+
+class _SignInPrompt extends StatelessWidget {
+  const _SignInPrompt({required this.onSignIn});
+
+  final VoidCallback onSignIn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          const Icon(Icons.lock_rounded, color: AppColors.accent, size: 44),
+          const SizedBox(height: 14),
+          Text(
+            'Sign in to view progress',
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your local games still work. Sign in when you want XP, streaks, and skill insights saved.',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          PrimaryButton(label: 'Sign In', onPressed: onSignIn),
+        ],
       ),
     );
   }

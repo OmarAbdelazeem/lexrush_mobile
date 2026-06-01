@@ -12,6 +12,9 @@ class ApiException implements Exception {
   final Object? cause;
 
   bool get isSessionAlreadyCompleted => code == 'SESSION_ALREADY_COMPLETED';
+  bool get isUnauthorized => statusCode == 401 && code == 'UNAUTHORIZED';
+  bool get isInvalidRefreshToken => code == 'INVALID_REFRESH_TOKEN';
+  bool get isAuthRequired => code == 'AUTH_REQUIRED';
 
   @override
   String toString() {

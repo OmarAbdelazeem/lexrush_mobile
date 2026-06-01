@@ -101,6 +101,31 @@ void main() {
       expect(handle.statusListenable.value.phase, BackendSyncPhase.failed);
       handle.dispose();
     });
+
+    test(
+      'logged-out sync emits auth required without creating session',
+      () async {
+        final _FakeBackendRepository repository = _FakeBackendRepository(
+          accessTokenAvailable: false,
+        );
+        final BackendResultSyncService service = BackendResultSyncService(
+          gameId: 'commas',
+          repository: repository,
+        );
+
+        final BackendResultSyncHandle handle = service.submitSummaryWithHandle(
+          _request(),
+        );
+        await handle.completed;
+
+        expect(
+          handle.statusListenable.value.phase,
+          BackendSyncPhase.authRequired,
+        );
+        expect(repository.createAttempts, 0);
+        handle.dispose();
+      },
+    );
   });
 
   group('ResultSyncStatusBanner', () {
@@ -122,6 +147,10 @@ void main() {
       handle.setStatus(const BackendSyncStatus.failed());
       await tester.pump();
       expect(find.text('Couldn’t sync progress'), findsOneWidget);
+
+      handle.setStatus(const BackendSyncStatus.authRequired());
+      await tester.pump();
+      expect(find.text('Sign in to save progress'), findsOneWidget);
 
       handle.dispose();
     });
@@ -156,15 +185,22 @@ class _Harness extends StatelessWidget {
 }
 
 class _FakeBackendRepository implements LexRushBackendRepository {
-  _FakeBackendRepository({this.createError, this.submitError});
+  _FakeBackendRepository({
+    this.createError,
+    this.submitError,
+    this.accessTokenAvailable = true,
+  });
 
   final Object? createError;
   final Object? submitError;
+  final bool accessTokenAvailable;
+  int createAttempts = 0;
   int progressFetches = 0;
   int skillsFetches = 0;
 
   @override
   Future<CreateGameSessionResponse> createGameSession(String gameId) async {
+    createAttempts += 1;
     final Object? error = createError;
     if (error != null) throw error;
     return const CreateGameSessionResponse(
@@ -224,4 +260,7 @@ class _FakeBackendRepository implements LexRushBackendRepository {
 
   @override
   void close() {}
+
+  @override
+  Future<bool> hasAccessToken() async => accessTokenAvailable;
 }

@@ -1,13 +1,15 @@
+import 'package:lexrush/core/auth/auth_tokens.dart';
+import 'package:lexrush/core/auth/token_store.dart';
+
 class ApiAuthHeadersProvider {
-  const ApiAuthHeadersProvider._({required this.devUserId});
+  const ApiAuthHeadersProvider({required TokenStore tokenStore})
+    : _tokenStore = tokenStore;
 
-  factory ApiAuthHeadersProvider.dev({String devUserId = 'dev-user-001'}) {
-    return ApiAuthHeadersProvider._(devUserId: devUserId);
-  }
+  final TokenStore _tokenStore;
 
-  final String devUserId;
-
-  Map<String, String> headers() {
-    return <String, String>{'x-dev-user-id': devUserId};
+  Future<Map<String, String>> authorizationHeaders() async {
+    final AuthTokens? tokens = await _tokenStore.readTokens();
+    if (tokens == null) return <String, String>{};
+    return <String, String>{'Authorization': 'Bearer ${tokens.accessToken}'};
   }
 }

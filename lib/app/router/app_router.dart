@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:lexrush/features/auth/presentation/screens/auth_screen.dart';
 import 'package:lexrush/features/games/antonym_rush/presentation/screens/antonym_rush_screen.dart';
 import 'package:lexrush/features/games/association/presentation/screens/association_screen.dart';
 import 'package:lexrush/features/games/commas/presentation/screens/commas_screen.dart';
@@ -22,6 +23,7 @@ abstract final class AppRoutes {
   static const String gameplay = '/gameplay';
   static const String results = '/results';
   static const String profile = '/profile';
+  static const String auth = '/auth';
 }
 
 abstract final class AppRouter {
@@ -43,6 +45,10 @@ abstract final class AppRouter {
       GoRoute(
         path: AppRoutes.profile,
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.auth,
+        builder: (context, state) => const AuthScreen(),
       ),
       GoRoute(
         path: '${AppRoutes.preGame}/:mode',

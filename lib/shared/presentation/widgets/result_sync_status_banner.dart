@@ -76,6 +76,12 @@ class ResultSyncStatusBanner extends StatelessWidget {
           icon: Icons.cloud_off_rounded,
           color: AppColors.error,
         );
+      case BackendSyncPhase.authRequired:
+        return const _BannerContent(
+          text: 'Sign in to save progress',
+          icon: Icons.lock_rounded,
+          color: AppColors.accent,
+        );
     }
   }
 }

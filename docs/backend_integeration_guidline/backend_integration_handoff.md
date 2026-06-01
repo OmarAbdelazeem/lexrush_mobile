@@ -368,14 +368,28 @@ Backend session creation returns prompt IDs:
 class SessionPromptDto {
   int orderIndex;
   String promptId;
-  dynamic contentJson;
-  dynamic answerJson;
+  dynamic contentJson;   // { displayTextWithoutCommas, correctTextWithCommas, ruleType }
+  dynamic answerJson;    // { insertionPoints: [{ afterToken, afterTokenIndex }] }
   int difficulty;
   String difficultyTag;
   String? ruleType;
   List<String> skillTags;
+  String? explanation;   // Phase 3B: teaching text — display AFTER user submits answer, not before
 }
 ```
+
+**Backend Phase 3B note (internal Phase 6):** As of this phase, `explanation` is included in every session prompt snapshot. Flutter should display it as post-attempt feedback. It is never `null` for Commas prompts. For future games it may be `null` — treat it as optional.
+
+**Prompt difficulty tiers for Commas:**
+
+| difficultyTag | difficulty | ruleTypes |
+|---|---|---|
+| beginner | 1 | location, date |
+| easy | 2 | list, introductory_phrase |
+| medium | 3 | contrast, direct_address |
+| hard | 4 | compound_sentence, appositive, non_restrictive_clause |
+
+First session: only beginner-safe prompts. Subsequent sessions: mixed difficulty tiers with recently-seen prompts deprioritised.
 
 Use:
 
