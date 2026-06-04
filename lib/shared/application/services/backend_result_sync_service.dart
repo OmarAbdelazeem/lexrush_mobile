@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:lexrush/core/network/api_exception.dart';
+import 'package:lexrush/shared/application/services/pending_result_queue.dart';
+import 'package:lexrush/shared/application/services/result_sync_error_classifier.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
@@ -75,11 +77,20 @@ class BackendResultSyncService {
   BackendResultSyncService({
     required String gameId,
     required LexRushBackendRepository repository,
+    PendingResultQueue? pendingQueue,
+    String? userId,
+    DateTime Function()? now,
   }) : _gameId = gameId,
-       _repository = repository;
+       _repository = repository,
+       _pendingQueue = pendingQueue,
+       _userId = userId,
+       _now = now ?? DateTime.now;
 
   final String _gameId;
   final LexRushBackendRepository _repository;
+  final PendingResultQueue? _pendingQueue;
+  final String? _userId;
+  final DateTime Function() _now;
 
   Future<CreateGameSessionResponse?>? _sessionFuture;
   CreateGameSessionResponse? _sessionResponse;
@@ -161,6 +172,7 @@ class BackendResultSyncService {
         handle.complete();
         return;
       }
+      await _tryEnqueueRetryable(error, request, sessionId);
       handle.setStatus(const BackendSyncStatus.failed());
       debugPrint('[BackendResultSync] $_gameId submit failed: $error');
     } on Object catch (error) {
@@ -190,6 +202,35 @@ class BackendResultSyncService {
         '[BackendResultSync] $_gameId session creation failed: $error',
       );
       return null;
+    }
+  }
+
+  Future<void> _tryEnqueueRetryable(
+    Object error,
+    SubmitGameResultRequest request,
+    String sessionId,
+  ) async {
+    try {
+      final PendingResultQueue? queue = _pendingQueue;
+      final String? userId = _userId;
+      if (queue == null || userId == null || userId.isEmpty) return;
+      if (!ResultSyncErrorClassifier.isRetryable(error)) return;
+
+      final DateTime now = _now();
+      await queue.enqueueOrUpdate(
+        PendingGameResult(
+          id: '$userId:$sessionId',
+          userId: userId,
+          gameId: _gameId,
+          sessionId: sessionId,
+          request: request,
+          createdAt: now,
+          enqueuedAt: now,
+          retryCount: 0,
+        ),
+      );
+    } on Object catch (queueError) {
+      debugPrint('[BackendResultSync] $_gameId enqueue failed: $queueError');
     }
   }
 }

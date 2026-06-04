@@ -6,6 +6,23 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 
 ## What changed (recent / relevant)
 
+### Backend / Auth / Progress Foundation
+- API infrastructure is in place: `ApiConfig`, `ApiClient`, auth policies, backend error envelope parsing, and `LexRushBackendRepository`.
+- Base URL stays configurable with `--dart-define=LEXRUSH_API_BASE_URL=...`; default fallback is `http://10.0.2.2:3000` for Android emulator host access.
+- Auth is Bearer-token based with secure token storage, refresh-token rotation, single-flight refresh, and minimal login/register/logout UI.
+- Protected calls use `Authorization: Bearer <accessToken>`; do not reintroduce `x-dev-user-id` for authenticated endpoints.
+- `ProfileScreen` loads `/me/progress` and `/me/skills`, shows progress/skill state, and has unauthenticated/error/empty paths.
+- All four shipped games create backend sessions and submit summary-only results. Local result screens remain immediate and non-blocking.
+- Result screens use per-result sync handles, not one shared global status. Copy: `Syncing progress...`, `Progress synced`, `Progress synced · +X XP saved`, `Couldn't sync progress`, `Sign in to save progress`.
+- Offline result retry queue is implemented:
+  - user-scoped `PendingGameResult` items
+  - dedupe/upsert by `userId + sessionId`
+  - queue only authenticated submit failures after a backend `sessionId` exists
+  - drain only for the same authenticated user
+  - no new backend sessions during retry
+  - remove on success or `SESSION_ALREADY_COMPLETED`
+  - keep on retryable network/server failure, drop validation/client-contract failures
+
 ### Antonym Rush
 - Dev-only round telemetry (`AntonymRoundTelemetry`): phases, timeouts, missed-reason attribution (`correctEscaped`, `allEscaped`, `watchdog`, `roundTimeout`).
 - Dev-only tap telemetry (`AntonymTapTelemetry`): option identity, ignored taps during feedback, score/combo before/after.
@@ -29,8 +46,11 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 - Replay is **1 per part**; combined recall has no replay. Scoring remains perfect part `+100`, perfect combined `+200`, partial `+20` per correct position.
 
 ### Commas (shipped mode)
-- Full flow under `lib/features/games/commas/`: **60s** session, curated prompt data only, no runtime grammar detection.
+- Full flow under `lib/features/games/commas/`: **60s** session, backend prompt snapshots for authenticated runs with local curated fallback, no runtime grammar detection.
 - `CommasCubit` owns timer, prompt selection, placed commas, wrong taps, scoring, history, and results.
+- Backend snapshot mapper uses `contentJson.displayTextWithoutCommas`, prefers `contentJson.correctTextWithCommas`, and preserves `answerJson.insertionPoints[].afterTokenIndex` as the correctness source.
+- If backend session creation succeeds but mapped prompts are invalid/empty, Commas falls back to local prompts and must not reuse that invalid backend session for result submission.
+- Explanations display only after a prompt is submitted/completed.
 - `CommaTextArea` renders natural prose as one `RichText` string and overlays TextPainter-measured transparent `CommaGapDetector` hitboxes using stable `afterTokenIndex` values.
 - Scoring remains correct comma `+100`, sentence complete bonus `+100`, wrong tap `-3s`.
 - Results review should stay user-friendly: original/correct blocks plus your commas, wrong taps, rule, and explanation.
@@ -87,6 +107,24 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 - `lib/shared/domain/entities/game_catalog.dart`
 - `lib/shared/domain/entities/game_mode.dart`
 
+**Backend / Auth / Profile / Queue**
+- `lib/core/network/api_client.dart`
+- `lib/core/network/api_auth_headers_provider.dart`
+- `lib/features/auth/application/auth_cubit.dart`
+- `lib/features/auth/data/auth_repository.dart`
+- `lib/features/profile/application/cubit/profile_cubit.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/shared/data/backend/lexrush_backend_repository.dart`
+- `lib/shared/application/services/backend_result_sync_service.dart`
+- `lib/shared/application/services/backend_result_mappers.dart`
+- `lib/shared/application/services/pending_result_queue.dart`
+- `lib/shared/application/services/offline_result_retry_coordinator.dart`
+- `test/backend_api_test.dart`
+- `test/backend_result_sync_service_test.dart`
+- `test/offline_result_retry_queue_test.dart`
+- `test/auth_cubit_test.dart`
+- `test/profile_cubit_test.dart`
+
 ---
 
 ## Current gaps / watch list
@@ -95,6 +133,9 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 - **Association:** **Content** quality over time (synonym nuance); hints must stay **hard-tier** for ambiguous lemmas. Optional: `integration_test` for happy paths.
 - **Sequencing Memory:** Real-device TTS pacing and stop/pause/exit behavior should be checked periodically; do not expose full sequence order during listening.
 - **Commas:** Text renderer/game feel is the main polish surface; preserve TextPainter hitbox alignment while tuning typography, affordances, and feedback.
+- **Backend sync:** Manual offline retry verification is still valuable: logged-in failed submit after session creation should queue, Profile/login should drain for the same user, and another user must not drain that item.
+- **Auth:** Offline startup should not clear valid tokens just because `/auth/me` cannot connect.
+- **Profile:** Queue drain is intentionally non-blocking; drain failures must not make Profile load fail.
 - **Catalog:** Synonym Storm / Definition Match appear in UI registry; confirm scope before treating as “broken” vs “not built yet.”
 
 ---
@@ -107,19 +148,27 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 - **Association:** Keep **Cubit** authoritative for timers and game end; keep **2** options per round.
 - **Sequencing Memory:** Keep real TTS behind `SequencingAudioService`; mock audio remains the test/dev fallback.
 - **Commas:** UI forwards only `afterTokenIndex`; Cubit decides correctness.
+- **Backend result sync:** Summary-only, no `answerEvents`, decimal accuracy `0..1`, local result screens first.
+- **Offline queue:** Only queue authenticated submit failures with an existing `sessionId`; queue items are scoped by `userId` and retried only for that user.
+- **Auth:** Keep protected requests Bearer-only and refresh single-flight.
 
 ---
 
 ## Next steps (after your edits)
 
 1. `flutter analyze`
-2. `flutter test test/antonym_rush_cubit_test.dart`
-3. `flutter test test/association_cubit_test.dart`
-4. `flutter test test/sequencing_memory_cubit_test.dart`
-5. `flutter test test/commas_cubit_test.dart`
-6. `flutter test test/commas_text_area_widget_test.dart`
-7. Optionally: `flutter test tool/sim_association_60s_session.dart` (longer run)
-8. For UX-sensitive changes: manual pass per [`docs/testing/Testing_Tutorial.md`](../testing/Testing_Tutorial.md)
+2. `flutter test test/backend_api_test.dart`
+3. `flutter test test/backend_result_sync_service_test.dart`
+4. `flutter test test/offline_result_retry_queue_test.dart`
+5. `flutter test test/auth_cubit_test.dart`
+6. `flutter test test/profile_cubit_test.dart`
+7. `flutter test test/antonym_rush_cubit_test.dart`
+8. `flutter test test/association_cubit_test.dart`
+9. `flutter test test/sequencing_memory_cubit_test.dart`
+10. `flutter test test/commas_cubit_test.dart`
+11. `flutter test test/commas_text_area_widget_test.dart`
+12. Optionally: `flutter test tool/sim_association_60s_session.dart` (longer run)
+13. For UX-sensitive changes: manual pass per [`docs/testing/Testing_Tutorial.md`](../testing/Testing_Tutorial.md)
 
 ---
 

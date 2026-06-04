@@ -11,6 +11,20 @@ class SubmitGameResultRequest {
     required this.averageResponseTimeMs,
   });
 
+  factory SubmitGameResultRequest.fromJson(Map<String, dynamic> json) {
+    return SubmitGameResultRequest(
+      score: json['score'] as int,
+      accuracy: (json['accuracy'] as num).toDouble(),
+      totalAttempts: json['totalAttempts'] as int,
+      correctAnswers: json['correctAnswers'] as int,
+      wrongAnswers: json['wrongAnswers'] as int,
+      missedAnswers: json['missedAnswers'] as int,
+      wordsSolved: json['wordsSolved'] as int,
+      bestCombo: json['bestCombo'] as int,
+      averageResponseTimeMs: json['averageResponseTimeMs'] as int,
+    );
+  }
+
   final int score;
   final double accuracy;
   final int totalAttempts;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lexrush/core/auth/auth_invalidation_controller.dart';
 import 'package:lexrush/core/auth/auth_tokens.dart';
@@ -6,6 +8,7 @@ import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/auth/application/auth_state.dart';
 import 'package:lexrush/features/auth/data/auth_dtos.dart';
 import 'package:lexrush/features/auth/data/auth_repository.dart';
+import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
 
 void main() {
   group('AuthCubit', () {
@@ -73,6 +76,98 @@ void main() {
       await invalidationController.close();
     });
 
+    test('login triggers pending result drain without blocking auth', () async {
+      final _FakeAuthRepository repository = _FakeAuthRepository();
+      final _FakeResultRetryDrainer retryDrainer = _FakeResultRetryDrainer(
+        drainCompleter: Completer<void>(),
+      );
+      final AuthInvalidationController invalidationController =
+          AuthInvalidationController();
+      final AuthCubit cubit = AuthCubit(
+        repository: repository,
+        invalidationController: invalidationController,
+        retryDrainer: retryDrainer,
+      );
+
+      await cubit.login(email: 'test@example.com', password: 'password123');
+
+      expect(cubit.state.status, AuthStatus.authenticated);
+      expect(retryDrainer.userIds, <String>['user-1']);
+
+      retryDrainer.drainCompleter!.complete();
+      await cubit.close();
+      await invalidationController.close();
+    });
+
+    test('register triggers pending result drain', () async {
+      final _FakeAuthRepository repository = _FakeAuthRepository();
+      final _FakeResultRetryDrainer retryDrainer = _FakeResultRetryDrainer();
+      final AuthInvalidationController invalidationController =
+          AuthInvalidationController();
+      final AuthCubit cubit = AuthCubit(
+        repository: repository,
+        invalidationController: invalidationController,
+        retryDrainer: retryDrainer,
+      );
+
+      await cubit.register(
+        email: 'test@example.com',
+        password: 'password123',
+        displayName: 'Test',
+      );
+
+      expect(cubit.state.status, AuthStatus.authenticated);
+      expect(retryDrainer.userIds, <String>['user-1']);
+
+      await cubit.close();
+      await invalidationController.close();
+    });
+
+    test('startup with restored user triggers pending result drain', () async {
+      final _FakeAuthRepository repository = _FakeAuthRepository(
+        hasStoredTokens: true,
+      );
+      final _FakeResultRetryDrainer retryDrainer = _FakeResultRetryDrainer();
+      final AuthInvalidationController invalidationController =
+          AuthInvalidationController();
+      final AuthCubit cubit = AuthCubit(
+        repository: repository,
+        invalidationController: invalidationController,
+        retryDrainer: retryDrainer,
+      );
+
+      await cubit.initialize();
+
+      expect(cubit.state.status, AuthStatus.authenticated);
+      expect(retryDrainer.userIds, <String>['user-1']);
+
+      await cubit.close();
+      await invalidationController.close();
+    });
+
+    test('drain failure does not undo successful login', () async {
+      final _FakeAuthRepository repository = _FakeAuthRepository();
+      final _FakeResultRetryDrainer retryDrainer = _FakeResultRetryDrainer(
+        drainError: Exception('queue unavailable'),
+      );
+      final AuthInvalidationController invalidationController =
+          AuthInvalidationController();
+      final AuthCubit cubit = AuthCubit(
+        repository: repository,
+        invalidationController: invalidationController,
+        retryDrainer: retryDrainer,
+      );
+
+      await cubit.login(email: 'test@example.com', password: 'password123');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.state.status, AuthStatus.authenticated);
+      expect(retryDrainer.userIds, <String>['user-1']);
+
+      await cubit.close();
+      await invalidationController.close();
+    });
+
     test('invalidation signal moves auth state to logged out', () async {
       final _FakeAuthRepository repository = _FakeAuthRepository();
       final AuthInvalidationController invalidationController =
@@ -92,6 +187,23 @@ void main() {
       await invalidationController.close();
     });
   });
+}
+
+class _FakeResultRetryDrainer implements ResultRetryDrainer {
+  _FakeResultRetryDrainer({this.drainCompleter, this.drainError});
+
+  final Completer<void>? drainCompleter;
+  final Object? drainError;
+  final List<String> userIds = <String>[];
+
+  @override
+  Future<void> drain({required String userId}) async {
+    userIds.add(userId);
+    final Object? error = drainError;
+    if (error != null) throw error;
+    final Completer<void>? completer = drainCompleter;
+    if (completer != null) return completer.future;
+  }
 }
 
 class _FakeAuthRepository implements AuthRepository {

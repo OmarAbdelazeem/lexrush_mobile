@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lexrush/core/network/api_exception.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
+import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
@@ -145,6 +146,108 @@ void main() {
       expect(handle.statusListenable.value.phase, BackendSyncPhase.synced);
       handle.dispose();
     });
+
+    test(
+      'network submit failure with session id enqueues pending result',
+      () async {
+        final _FakeBackendRepository repository = _FakeBackendRepository(
+          submitError: const ApiException(message: 'offline'),
+        );
+        final _FakePendingResultQueue queue = _FakePendingResultQueue();
+        final BackendResultSyncService service = BackendResultSyncService(
+          gameId: 'commas',
+          repository: repository,
+          pendingQueue: queue,
+          userId: 'user-1',
+        );
+
+        final BackendResultSyncHandle handle = service.submitSummaryWithHandle(
+          _request(),
+        );
+        await handle.completed;
+
+        expect(handle.statusListenable.value.phase, BackendSyncPhase.failed);
+        expect(queue.items, hasLength(1));
+        expect(queue.items.single.userId, 'user-1');
+        expect(queue.items.single.sessionId, 'session-1');
+        expect(queue.items.single.request.accuracy, 0.8);
+        expect(
+          queue.items.single.request.toJson().containsKey('answerEvents'),
+          isFalse,
+        );
+        handle.dispose();
+      },
+    );
+
+    test(
+      'session creation failure does not enqueue without session id',
+      () async {
+        final _FakePendingResultQueue queue = _FakePendingResultQueue();
+        final _FakeBackendRepository repository = _FakeBackendRepository(
+          createError: const ApiException(message: 'offline'),
+        );
+        final BackendResultSyncService service = BackendResultSyncService(
+          gameId: 'commas',
+          repository: repository,
+          pendingQueue: queue,
+          userId: 'user-1',
+        );
+
+        final BackendResultSyncHandle handle = service.submitSummaryWithHandle(
+          _request(),
+        );
+        await handle.completed;
+
+        expect(queue.items, isEmpty);
+        handle.dispose();
+      },
+    );
+
+    test('validation error does not enqueue', () async {
+      final _FakePendingResultQueue queue = _FakePendingResultQueue();
+      final _FakeBackendRepository repository = _FakeBackendRepository(
+        submitError: const ApiException(
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid accuracy.',
+        ),
+      );
+      final BackendResultSyncService service = BackendResultSyncService(
+        gameId: 'commas',
+        repository: repository,
+        pendingQueue: queue,
+        userId: 'user-1',
+      );
+
+      final BackendResultSyncHandle handle = service.submitSummaryWithHandle(
+        _request(),
+      );
+      await handle.completed;
+
+      expect(queue.items, isEmpty);
+      handle.dispose();
+    });
+
+    test('auth required does not enqueue', () async {
+      final _FakePendingResultQueue queue = _FakePendingResultQueue();
+      final _FakeBackendRepository repository = _FakeBackendRepository(
+        accessTokenAvailable: false,
+      );
+      final BackendResultSyncService service = BackendResultSyncService(
+        gameId: 'commas',
+        repository: repository,
+        pendingQueue: queue,
+        userId: 'user-1',
+      );
+
+      final BackendResultSyncHandle handle = service.submitSummaryWithHandle(
+        _request(),
+      );
+      await handle.completed;
+
+      expect(queue.items, isEmpty);
+      handle.dispose();
+    });
   });
 
   group('ResultSyncStatusBanner', () {
@@ -174,6 +277,45 @@ void main() {
       handle.dispose();
     });
   });
+}
+
+class _FakePendingResultQueue implements PendingResultQueue {
+  final List<PendingGameResult> items = <PendingGameResult>[];
+
+  @override
+  Future<void> enqueueOrUpdate(PendingGameResult item) async {
+    final int index = items.indexWhere(
+      (PendingGameResult existing) =>
+          existing.userId == item.userId &&
+          existing.sessionId == item.sessionId,
+    );
+    if (index == -1) {
+      items.add(item);
+    } else {
+      items[index] = item;
+    }
+  }
+
+  @override
+  Future<List<PendingGameResult>> loadAll() async => List.of(items);
+
+  @override
+  Future<void> remove(String id) async {
+    items.removeWhere((PendingGameResult item) => item.id == id);
+  }
+
+  @override
+  Future<void> removeForUser(String userId) async {
+    items.removeWhere((PendingGameResult item) => item.userId == userId);
+  }
+
+  @override
+  Future<void> update(PendingGameResult item) async {
+    final int index = items.indexWhere(
+      (PendingGameResult existing) => existing.id == item.id,
+    );
+    if (index != -1) items[index] = item;
+  }
 }
 
 SubmitGameResultRequest _request() {

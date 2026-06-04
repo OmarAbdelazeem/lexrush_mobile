@@ -9,6 +9,7 @@ import 'package:lexrush/features/auth/application/auth_state.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_cubit.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_state.dart';
 import 'package:lexrush/features/profile/data/backend_profile_repository.dart';
+import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
@@ -24,6 +25,8 @@ class ProfileScreen extends StatelessWidget {
         repository: BackendProfileRepository(
           context.read<LexRushBackendRepository>(),
         ),
+        retryDrainer: context.read<ResultRetryDrainer>(),
+        userId: context.read<AuthCubit>().state.user?.userId,
       ),
       child: const _ProfileView(),
     );

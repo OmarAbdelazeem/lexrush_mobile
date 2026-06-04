@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
+import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_cubit.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_state.dart';
 import 'package:lexrush/features/games/commas/application/services/commas_backend_bootstrap.dart';
@@ -13,6 +14,7 @@ import 'package:lexrush/features/games/commas/presentation/widgets/comma_feedbac
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_area.dart';
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
+import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 
@@ -34,6 +36,8 @@ class _CommasScreenState extends State<CommasScreen> {
     if (_bootstrapFuture != null) return;
     _bootstrapFuture = CommasBackendBootstrap(
       repository: context.read<LexRushBackendRepository>(),
+      pendingQueue: context.read<PendingResultQueue>(),
+      userId: context.read<AuthCubit>().state.user?.userId,
     ).load();
   }
 

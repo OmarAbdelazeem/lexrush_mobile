@@ -13,7 +13,8 @@
 - **Antonym Rush:** Scoring, combo, penalties, timers, replay goals, and dev-only telemetry are in place. Balloons animate upward behind the target card; escape-line presentation is coordinated with Cubit resolution.
 - **Association:** Semantic “closest match” game (target word + two shuffled options). Neural-graph style UI with entry/ambient/feedback animations, context-hint pill for hard ambiguous prompts, compact feedback panel, and results screen with review (misses first, correct answer emphasized). Cubit owns session timer, round timer, feedback transitions, scoring, and review list.
 - **Sequencing Memory:** Working-memory route recall. Uses real device TTS through `SequencingAudioService` in runtime, mock/controlled audio in tests, and a fixed **3 route challenge** session with part-one, part-two, and combined recall stages.
-- **Commas:** 60-second punctuation challenge. Uses curated prompts only and a natural-prose `RichText` renderer with TextPainter-measured transparent gap hitboxes; Cubit owns correctness, timer, score, prompt history, and results.
+- **Commas:** 60-second punctuation challenge. Authenticated runs briefly attempt backend prompt snapshots, then fall back to local curated prompts if auth/backend/network/mapping fails. Gameplay remains local-first with a natural-prose `RichText` renderer and TextPainter-measured transparent gap hitboxes; Cubit owns correctness, timer, score, prompt history, and results.
+- **Backend integration:** Auth, protected API calls, profile/progress, result sync, result-screen sync status, and a user-scoped offline result retry queue are implemented. Gameplay/result screens remain immediate and non-blocking.
 - **Docs:** [docs/testing/Testing_Tutorial.md](../testing/Testing_Tutorial.md) describes manual QA on emulator/device (adb, screenshots, recordings, iOS Simulator basics).
 
 ## Architecture and Stack
@@ -21,7 +22,42 @@
 - **Routing:** `go_router`
 - **Layering:** domain, application, presentation, data (per game under `lib/features/games/<game>/`)
 - **Shared services:** scoring, replay goals, timer manager, game registry
-- **Persistence:** local onboarding/progress support via shared repositories/services
+- **Backend/API:** `ApiClient`, `ApiConfig`, `ApiAuthHeadersProvider`, `AuthRepository`, and `LexRushBackendRepository`
+- **Persistence:** local onboarding/progress support, secure token storage, and pending backend result queue via shared repositories/services
+
+## Backend and Sync Rules (Do Not Break)
+
+- Keep local gameplay and local result screens authoritative. Backend sync must never block gameplay, result navigation, replay, or returning to modes.
+- Backend base URL remains configurable with `--dart-define=LEXRUSH_API_BASE_URL=...`; fallback is `http://10.0.2.2:3000` for Android emulator host access.
+- Protected backend calls use `Authorization: Bearer <accessToken>`, not `x-dev-user-id`. Auth headers are centralized in `ApiAuthHeadersProvider`.
+- Auth requests use explicit auth policy:
+  - public: register, login, refresh, logout, health/catalog endpoints
+  - requiredAuth: game sessions/results, `/me/progress`, `/me/skills`, `/auth/me`
+- Refresh is single-flight. On a protected `401 UNAUTHORIZED`, refresh once, persist rotated access + refresh tokens, then retry once. Clear tokens only on confirmed invalid/revoked refresh token or unrecoverable auth failure.
+- Logout clears local tokens even if backend logout fails.
+- Result sync is summary-only. Do **not** send `answerEvents`.
+- API `accuracy` must be decimal `0..1`; never send percentage values like `80` for `80%`.
+- `SESSION_ALREADY_COMPLETED` is graceful success/already synced and must not be treated as a user-facing failure.
+- Result-screen sync status copy:
+  - `Syncing progress...`
+  - `Progress synced` / `Progress synced · +X XP saved`
+  - `Couldn't sync progress`
+  - `Sign in to save progress`
+- Offline retry queue is user-scoped:
+  - Queue only authenticated submit failures when a backend `sessionId` already exists.
+  - Include `userId`, `gameId`, `sessionId`, summary request JSON, timestamps, and retry metadata.
+  - Deduplicate/upsert by `userId + sessionId`.
+  - Drain only items whose `userId` matches the current authenticated user.
+  - Never create a new backend session during retry in the current phase.
+  - Do not queue logged-out/auth-required results, session creation failures without a `sessionId`, validation/client-contract bugs, or invalid decimal accuracy.
+  - Keep queue bounded and robust against corrupt JSON/items.
+
+## Backend/Profile Current State
+
+- **Auth:** Minimal login/register/logout UI and token persistence are wired. App restart restores tokens; offline `/auth/me` failure should not clear valid stored tokens.
+- **Profile/Progress:** `ProfileScreen` fetches `/me/progress` and `/me/skills`, with loading/loaded/empty/error states and a sign-in prompt when unauthenticated.
+- **Result sync:** All four shipped games create backend sessions, submit summary results, fetch progress/skills after successful sync, and show per-result sync status via a per-screen handle.
+- **Offline queue:** `PendingResultQueue` + `OfflineResultRetryCoordinator` retry failed authenticated result submissions on auth startup/login/register and Profile load. Drains are single-flight and non-blocking.
 
 ## Gameplay Rules (Do Not Break)
 
@@ -49,7 +85,10 @@
 
 ### Commas
 - Session length: **60s**; no lives.
-- Curated prompt data only. Do **not** add runtime AI grammar detection for V1.
+- Authenticated startup attempts backend prompt snapshots for `gameId: "commas"` with local curated fallback. Do **not** add runtime AI grammar detection for V1.
+- Backend Commas mapping uses `contentJson.displayTextWithoutCommas`, prefers backend `contentJson.correctTextWithCommas` when present, and uses `answerJson.insertionPoints[].afterTokenIndex` as the correctness source.
+- If backend session creation succeeds but mapped prompts are empty/invalid, fall back to local prompts and do not reuse that invalid backend session for result submission.
+- Explanation is displayed only after the user submits/completes that prompt, never before.
 - Correct comma: `+100`; prompt complete bonus: `+100`; wrong tap: `-3s`; score does not decrease.
 - Cubit owns correctness. UI forwards only stable gap ids / `afterTokenIndex`.
 - Renderer is intentionally **not** raw coordinate guessing: `CommaTextArea` renders one natural prose `RichText`, then overlays transparent TextPainter-measured `CommaGapDetector` hitboxes. Keep commas visually attached to the previous word.
@@ -92,15 +131,29 @@
 - **Tests:** `test/sequencing_memory_cubit_test.dart`.
 
 ## Commas Work (Latest)
-- **Feature root:** `lib/features/games/commas/` (curated prompts, entities, scoring/difficulty/generator services, Cubit, gameplay screen, results screen).
+- **Feature root:** `lib/features/games/commas/` (local prompts, backend snapshot mapper/bootstrap, entities, scoring/difficulty/generator services, Cubit, gameplay screen, results screen).
+- **Backend snapshots:** `CommasBackendBootstrap` attempts a run-scoped backend session and maps prompt snapshots through `CommasPromptSnapshotMapper`; local prompts remain the fallback for logged-out/offline/failed/invalid sessions.
 - **Renderer:** `CommaTextArea` uses a single attached-comma text string plus cached TextPainter measurements for gap positions. Transparent `CommaGapDetector` overlays preserve generous mobile tap targets without widening visual spacing.
 - **Debug affordance:** `CommasScreen.showDebugGapHitboxes` remains false by default and only reveals hitboxes in debug builds.
 - **UI polish:** The gameplay sentence is the hero, with faint non-answer-revealing gap affordances for every tappable gap, local correct/wrong feedback, and stacked educational review notes.
 - **Tests:** `test/commas_cubit_test.dart` and `test/commas_text_area_widget_test.dart`.
 
+## Backend Sync Work (Latest)
+- **Core network:** `lib/core/network/` contains base URL config, auth header policy, JSON requests, error envelope parsing, and refresh/retry behavior.
+- **Auth:** `lib/features/auth/` owns token-backed register/login/logout/me state; gameplay Cubits do not depend on auth state.
+- **Repository/DTOs:** `LexRushBackendRepository` wraps game session/result, progress, skills, and auth-backed protected endpoints.
+- **Result sync:** `BackendResultSyncService` creates/reuses per-run sessions and returns per-result `BackendResultSyncHandle`; result screens listen with `ResultSyncStatusBanner`.
+- **Offline retry:** `PendingResultQueue` persists user-scoped pending results, and `OfflineResultRetryCoordinator` drains only matching-user items without creating sessions.
+- **Profile:** `lib/features/profile/` renders progress and skills from `/me/progress` and `/me/skills`, and triggers non-blocking queue drain on load.
+
 ## Validation Snapshot
 Run after substantive changes:
 - `flutter analyze`
+- `flutter test test/backend_api_test.dart`
+- `flutter test test/backend_result_sync_service_test.dart`
+- `flutter test test/offline_result_retry_queue_test.dart`
+- `flutter test test/auth_cubit_test.dart`
+- `flutter test test/profile_cubit_test.dart`
 - `flutter test test/antonym_rush_cubit_test.dart`
 - `flutter test test/association_cubit_test.dart`
 - `flutter test test/sequencing_memory_cubit_test.dart`
@@ -111,12 +164,14 @@ Run after substantive changes:
 Antonym Cubit tests include first-five correct path (e.g. score `700`, accuracy `100%`, `wordsSolved=5`, `missed=0`). Re-run a **60s simulation or real session** when tuning timing or presentation; capture telemetry if behavior disagrees with expectations.
 
 ## Immediate Priorities
-1. Keep shipped-mode scoring, results math, routing, and review contracts stable; tune inside game modules only unless explicitly migrating shared code.
-2. **Antonym:** Occasional real-device/video pass to confirm escape animation + `roundTimeout` never disagree with “still tappable” in production builds; mine `AntonymTapTelemetry` for ignored taps during play.
-3. **Association:** Further content QA on prompt fairness; optional integration/`integration_test` later for stable flows.
-4. **Sequencing Memory:** Periodic device pass for TTS pacing, pause/exit cleanup, and combined-recall clarity.
-5. **Commas:** Continue visual/game-feel polish around sentence prominence, all-gap affordances, and review readability without changing scoring.
-6. Use [docs/testing/Testing_Tutorial.md](../testing/Testing_Tutorial.md) for reproducible manual passes (emulator, adb, screenshots).
+1. Keep shipped-mode scoring, results math, routing, backend contracts, and review contracts stable; tune inside game modules only unless explicitly migrating shared code.
+2. Manually verify offline queue behavior on emulator: authenticated result fails after session creation, queue persists, Profile/login drain syncs it for the same user, and another user cannot drain it.
+3. Continue backend-driven prompt work incrementally. Commas is the only game consuming backend prompt snapshots today; do not switch other games unless explicitly tasked.
+4. **Antonym:** Occasional real-device/video pass to confirm escape animation + `roundTimeout` never disagree with “still tappable” in production builds; mine `AntonymTapTelemetry` for ignored taps during play.
+5. **Association:** Further content QA on prompt fairness; optional integration/`integration_test` later for stable flows.
+6. **Sequencing Memory:** Periodic device pass for TTS pacing, pause/exit cleanup, and combined-recall clarity.
+7. **Commas:** Continue visual/game-feel polish around sentence prominence, all-gap affordances, backend snapshot explanations, and review readability without changing scoring.
+8. Use [docs/testing/Testing_Tutorial.md](../testing/Testing_Tutorial.md) for reproducible manual passes (emulator, adb, screenshots).
 
 ## Key Paths
 
@@ -149,6 +204,8 @@ Antonym Cubit tests include first-five correct path (e.g. score `700`, accuracy 
 ### Commas
 - `lib/features/games/commas/application/cubit/commas_cubit.dart`
 - `lib/features/games/commas/application/cubit/commas_state.dart`
+- `lib/features/games/commas/application/services/commas_backend_bootstrap.dart`
+- `lib/features/games/commas/data/comma_prompt_snapshot_mapper.dart`
 - `lib/features/games/commas/data/comma_prompts.dart`
 - `lib/features/games/commas/domain/services/comma_round_generator.dart`
 - `lib/features/games/commas/domain/services/comma_scoring_service.dart`
@@ -162,11 +219,26 @@ Antonym Cubit tests include first-five correct path (e.g. score `700`, accuracy 
 - `lib/shared/domain/entities/game_catalog.dart`
 - `lib/shared/domain/entities/game_mode.dart`
 
+### Backend / Auth / Profile / Queue
+- `lib/core/network/api_client.dart`
+- `lib/core/network/api_auth_headers_provider.dart`
+- `lib/features/auth/application/auth_cubit.dart`
+- `lib/features/auth/data/auth_repository.dart`
+- `lib/features/profile/application/cubit/profile_cubit.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/shared/data/backend/lexrush_backend_repository.dart`
+- `lib/shared/application/services/backend_result_sync_service.dart`
+- `lib/shared/application/services/backend_result_mappers.dart`
+- `lib/shared/application/services/pending_result_queue.dart`
+- `lib/shared/application/services/offline_result_retry_coordinator.dart`
+
 ## Notes for Next Contributors
 - Keep **Antonym** telemetry (`AntonymRoundTelemetry`, `AntonymTapTelemetry`) and **Association** telemetry (`[AssociationTelemetry]`) **debug-only** and **log-only** — no gameplay side effects from logging.
 - **Antonym:** Preserve escape-line + safety timeout modeling; avoid re-tightening auto-miss below visual tappability without a measured session.
 - **Association:** Preserve Cubit-owned timers and pause/resume behavior; do not move scoring or `GameResult` computation into widgets.
 - **Sequencing Memory:** Keep audio behind `SequencingAudioService`; do not let UI captions drive logic or reveal full sequence order during listening.
 - **Commas:** Keep Cubit authoritative for correctness; preserve TextPainter-measured transparent hitboxes and attached comma rendering.
+- **Backend sync:** Keep summary-only result submission, decimal accuracy, no `answerEvents`, per-result sync handles, and user-scoped offline queue semantics.
+- **Auth/Profile:** Keep protected requests Bearer-only, refresh single-flight, and Profile queue drains non-blocking.
 - Prioritize **first-session fairness** (accuracy, solved count, missed count), then visual polish.
 - Any tuning should be narrow, measurable, and validated by analyzer + targeted tests + a full **60s** run where relevant.

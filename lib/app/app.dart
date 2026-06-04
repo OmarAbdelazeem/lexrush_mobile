@@ -10,7 +10,10 @@ import 'package:lexrush/core/network/api_config.dart';
 import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/auth/data/auth_repository.dart';
 import 'package:lexrush/features/onboarding/application/cubit/onboarding_flow_cubit.dart';
+import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
+import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LexRushApp extends StatelessWidget {
   const LexRushApp({super.key});
@@ -51,6 +54,17 @@ class LexRushApp extends StatelessWidget {
           create: (BuildContext context) =>
               LexRushBackendRepository(apiClient: context.read<ApiClient>()),
         ),
+        RepositoryProvider<PendingResultQueue>(
+          create: (_) => SharedPreferencesPendingResultQueue(
+            preferences: SharedPreferencesAsync(),
+          ),
+        ),
+        RepositoryProvider<ResultRetryDrainer>(
+          create: (BuildContext context) => OfflineResultRetryCoordinator(
+            queue: context.read<PendingResultQueue>(),
+            repository: context.read<LexRushBackendRepository>(),
+          ),
+        ),
       ],
       child: MultiBlocProvider(
         providers: <BlocProvider<dynamic>>[
@@ -62,6 +76,7 @@ class LexRushApp extends StatelessWidget {
               repository: context.read<AuthRepository>(),
               invalidationController: context
                   .read<AuthInvalidationController>(),
+              retryDrainer: context.read<ResultRetryDrainer>(),
             )..initialize(),
           ),
         ],

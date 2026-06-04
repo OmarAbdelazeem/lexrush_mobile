@@ -5,17 +5,24 @@ import 'package:lexrush/features/games/commas/data/comma_prompts.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_prompt.dart';
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
+import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 
 class CommasBackendBootstrap {
   const CommasBackendBootstrap({
     required LexRushBackendRepository repository,
+    PendingResultQueue? pendingQueue,
+    String? userId,
     Duration timeout = const Duration(seconds: 2),
   }) : _repository = repository,
+       _pendingQueue = pendingQueue,
+       _userId = userId,
        _timeout = timeout;
 
   final LexRushBackendRepository _repository;
+  final PendingResultQueue? _pendingQueue;
+  final String? _userId;
   final Duration _timeout;
 
   Future<CommasBootstrapResult> load() async {
@@ -29,6 +36,8 @@ class CommasBackendBootstrap {
     final BackendResultSyncService syncService = BackendResultSyncService(
       gameId: BackendGameIds.commas,
       repository: _repository,
+      pendingQueue: _pendingQueue,
+      userId: _userId,
     );
 
     try {
