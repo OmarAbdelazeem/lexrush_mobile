@@ -49,6 +49,7 @@ void main() {
                 'difficultyTag': 'easy',
                 'ruleType': 'location',
                 'skillTags': <String>['grammar', 'punctuation'],
+                'explanation': 'Use a comma between a city and country.',
               },
             ],
           });
@@ -57,6 +58,10 @@ void main() {
       expect(response.prompts.single.promptId, 'prompt-1');
       expect(response.prompts.single.contentJson['text'], 'Hello world');
       expect(response.prompts.single.skillTags, contains('punctuation'));
+      expect(
+        response.prompts.single.explanation,
+        'Use a comma between a city and country.',
+      );
     });
 
     test('maps result, progress, and skills responses', () {

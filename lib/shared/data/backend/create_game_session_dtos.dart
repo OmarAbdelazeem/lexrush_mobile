@@ -56,6 +56,7 @@ class SessionPromptDto {
     required this.difficultyTag,
     required this.ruleType,
     required this.skillTags,
+    required this.explanation,
   });
 
   factory SessionPromptDto.fromJson(Map<String, dynamic> json) {
@@ -71,6 +72,7 @@ class SessionPromptDto {
       skillTags: skillTagsJson is List<dynamic>
           ? skillTagsJson.whereType<String>().toList()
           : <String>[],
+      explanation: json['explanation'] as String?,
     );
   }
 
@@ -82,6 +84,7 @@ class SessionPromptDto {
   final String difficultyTag;
   final String? ruleType;
   final List<String> skillTags;
+  final String? explanation;
 }
 
 Map<String, dynamic> _jsonMap(Object? value) {

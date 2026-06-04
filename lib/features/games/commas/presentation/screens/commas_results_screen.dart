@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_round_result.dart';
+import 'package:lexrush/features/games/commas/domain/entities/comma_rule_type.dart';
 import 'package:lexrush/features/games/commas/domain/entities/commas_game_result.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/presentation/widgets/primary_button.dart';
@@ -176,7 +177,7 @@ class _ReviewCard extends StatelessWidget {
                 ),
               ),
               Text(
-                item.prompt.ruleType.name,
+                _ruleLabel(item.prompt.ruleType),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -211,11 +212,17 @@ class _ReviewCard extends StatelessWidget {
                 ? 'No wrong taps'
                 : _afterPhrase('You tapped', item.wrongGapIndexes),
           ),
-          const SizedBox(height: 5),
-          _LearningNote(label: 'Rule', value: item.prompt.explanation),
+          if (item.prompt.explanation.trim().isNotEmpty) ...<Widget>[
+            const SizedBox(height: 5),
+            _LearningNote(label: 'Rule', value: item.prompt.explanation),
+          ],
         ],
       ),
     );
+  }
+
+  String _ruleLabel(CommaRuleType ruleType) {
+    return ruleType == CommaRuleType.general ? 'general' : ruleType.name;
   }
 
   String _formatWords(CommaRoundResult item, List<int> indexes) {

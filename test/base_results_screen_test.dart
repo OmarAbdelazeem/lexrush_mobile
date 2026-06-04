@@ -8,41 +8,90 @@ import 'package:lexrush/shared/domain/entities/replay_goal.dart';
 import 'package:lexrush/shared/presentation/widgets/base_results_screen.dart';
 
 void main() {
-  testWidgets('BaseResultsScreen scrolls on compact screens with sync banner', (
+  for (final Size viewport in <Size>[
+    const Size(390, 640),
+    const Size(360, 640),
+  ]) {
+    testWidgets(
+      'BaseResultsScreen scrolls with success banner at ${viewport.width}x${viewport.height}',
+      (WidgetTester tester) async {
+        final BackendResultSyncHandle handle = BackendResultSyncHandle();
+        handle.setStatus(const BackendSyncStatus.synced(xpEarned: 37));
+        addTearDown(handle.dispose);
+
+        await _pumpResultsScreen(
+          tester,
+          viewport: viewport,
+          syncHandle: handle,
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Progress synced · +37 XP saved'), findsOneWidget);
+
+        await tester.ensureVisible(find.text('Play Again'));
+        await tester.tap(find.text('Play Again'));
+        await tester.pump();
+        expect(_playAgainTaps, 1);
+
+        await tester.ensureVisible(find.text('Back To Modes'));
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(seconds: 2));
+      },
+    );
+  }
+
+  testWidgets('BaseResultsScreen scrolls with auth-required banner', (
     WidgetTester tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 700);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
     final BackendResultSyncHandle handle = BackendResultSyncHandle();
-    handle.setStatus(const BackendSyncStatus.synced(xpEarned: 37));
+    handle.setStatus(const BackendSyncStatus.authRequired());
     addTearDown(handle.dispose);
 
-    int playAgainTaps = 0;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.darkTheme,
-        home: BaseResultsScreen(
-          result: _result(),
-          syncHandle: handle,
-          onPlayAgain: () => playAgainTaps += 1,
-          onBackToModes: () {},
-        ),
-      ),
+    await _pumpResultsScreen(
+      tester,
+      viewport: const Size(360, 640),
+      syncHandle: handle,
     );
-    await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Progress synced · +37 XP saved'), findsOneWidget);
+    expect(find.text('Sign in to save progress'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Play Again'));
     await tester.tap(find.text('Play Again'));
-    expect(playAgainTaps, 1);
+    await tester.pump();
+    expect(_playAgainTaps, 1);
+
+    await tester.ensureVisible(find.text('Back To Modes'));
+    expect(tester.takeException(), isNull);
     await tester.pump(const Duration(seconds: 2));
   });
+}
+
+int _playAgainTaps = 0;
+
+Future<void> _pumpResultsScreen(
+  WidgetTester tester, {
+  required Size viewport,
+  required BackendResultSyncHandle syncHandle,
+}) async {
+  _playAgainTaps = 0;
+  tester.view.physicalSize = viewport;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.darkTheme,
+      home: BaseResultsScreen(
+        result: _result(),
+        syncHandle: syncHandle,
+        onPlayAgain: () => _playAgainTaps += 1,
+        onBackToModes: () {},
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 GameResult _result() {

@@ -126,6 +126,25 @@ void main() {
         handle.dispose();
       },
     );
+
+    test('submit reuses an already-created session', () async {
+      final _FakeBackendRepository repository = _FakeBackendRepository();
+      final BackendResultSyncService service = BackendResultSyncService(
+        gameId: 'commas',
+        repository: repository,
+      );
+
+      final CreateGameSessionResponse? session = await service.startSession();
+      final BackendResultSyncHandle handle = service.submitSummaryWithHandle(
+        _request(),
+      );
+      await handle.completed;
+
+      expect(session?.sessionId, 'session-1');
+      expect(repository.createAttempts, 1);
+      expect(handle.statusListenable.value.phase, BackendSyncPhase.synced);
+      handle.dispose();
+    });
   });
 
   group('ResultSyncStatusBanner', () {

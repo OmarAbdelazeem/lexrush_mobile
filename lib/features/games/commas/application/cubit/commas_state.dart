@@ -31,6 +31,7 @@ class CommasState extends Equatable {
     required this.wrongGapIndexes,
     required this.remainingCommaCount,
     required this.feedbackText,
+    required this.promptExplanation,
     required this.flashGapAfterTokenIndex,
     required this.promptCompleted,
     required this.review,
@@ -54,6 +55,7 @@ class CommasState extends Equatable {
       wrongGapIndexes: <int>[],
       remainingCommaCount: 0,
       feedbackText: null,
+      promptExplanation: null,
       flashGapAfterTokenIndex: null,
       promptCompleted: false,
       review: <CommaRoundResult>[],
@@ -76,6 +78,7 @@ class CommasState extends Equatable {
   final List<int> wrongGapIndexes;
   final int remainingCommaCount;
   final String? feedbackText;
+  final String? promptExplanation;
   final int? flashGapAfterTokenIndex;
   final bool promptCompleted;
   final List<CommaRoundResult> review;
@@ -99,6 +102,8 @@ class CommasState extends Equatable {
     int? remainingCommaCount,
     String? feedbackText,
     bool clearFeedbackText = false,
+    String? promptExplanation,
+    bool clearPromptExplanation = false,
     int? flashGapAfterTokenIndex,
     bool clearFlashGap = false,
     bool? promptCompleted,
@@ -125,6 +130,9 @@ class CommasState extends Equatable {
       feedbackText: clearFeedbackText
           ? null
           : feedbackText ?? this.feedbackText,
+      promptExplanation: clearPromptExplanation
+          ? null
+          : promptExplanation ?? this.promptExplanation,
       flashGapAfterTokenIndex: clearFlashGap
           ? null
           : flashGapAfterTokenIndex ?? this.flashGapAfterTokenIndex,
@@ -151,6 +159,7 @@ class CommasState extends Equatable {
     wrongGapIndexes,
     remainingCommaCount,
     feedbackText,
+    promptExplanation,
     flashGapAfterTokenIndex,
     promptCompleted,
     review,

@@ -6,7 +6,9 @@ import 'package:lexrush/app/theme/app_colors.dart';
 import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_cubit.dart';
 import 'package:lexrush/features/games/commas/application/cubit/commas_state.dart';
+import 'package:lexrush/features/games/commas/application/services/commas_backend_bootstrap.dart';
 import 'package:lexrush/features/games/commas/domain/entities/comma_difficulty.dart';
+import 'package:lexrush/features/games/commas/domain/services/comma_round_generator.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_feedback.dart';
 import 'package:lexrush/features/games/commas/presentation/widgets/comma_text_area.dart';
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
@@ -24,23 +26,55 @@ class CommasScreen extends StatefulWidget {
 }
 
 class _CommasScreenState extends State<CommasScreen> {
-  bool _navigatedToResults = false;
-  BackendResultSyncService? _syncService;
+  Future<CommasBootstrapResult>? _bootstrapFuture;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_syncService != null) return;
-    _syncService = BackendResultSyncService(
-      gameId: BackendGameIds.commas,
+    if (_bootstrapFuture != null) return;
+    _bootstrapFuture = CommasBackendBootstrap(
       repository: context.read<LexRushBackendRepository>(),
-    )..startSession();
+    ).load();
   }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<CommasBootstrapResult>(
+      future: _bootstrapFuture,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<CommasBootstrapResult> snapshot,
+          ) {
+            if (!snapshot.hasData) {
+              return const PortraitShell(
+                child: Center(child: Text('Preparing Commas…')),
+              );
+            }
+            return _CommasGameplay(bootstrap: snapshot.requireData);
+          },
+    );
+  }
+}
+
+class _CommasGameplay extends StatefulWidget {
+  const _CommasGameplay({required this.bootstrap});
+
+  final CommasBootstrapResult bootstrap;
+
+  @override
+  State<_CommasGameplay> createState() => _CommasGameplayState();
+}
+
+class _CommasGameplayState extends State<_CommasGameplay> {
+  bool _navigatedToResults = false;
+
+  @override
+  Widget build(BuildContext context) {
     return BlocProvider<CommasCubit>(
-      create: (_) => CommasCubit()..start(),
+      create: (_) => CommasCubit(
+        roundGenerator: CommaRoundGenerator(prompts: widget.bootstrap.prompts),
+      )..start(),
       child: BlocConsumer<CommasCubit, CommasState>(
         listenWhen: (previous, current) =>
             previous.status != current.status ||
@@ -52,8 +86,11 @@ class _CommasScreenState extends State<CommasScreen> {
           final result = state.result;
           if (result == null) return;
           _navigatedToResults = true;
-          final BackendResultSyncHandle? syncHandle = _syncService
-              ?.submitSummaryWithHandle(BackendResultMappers.commas(result));
+          final BackendResultSyncHandle? syncHandle =
+              widget.bootstrap.syncService?.submitSummaryWithHandle(
+                BackendResultMappers.commas(result),
+              ) ??
+              _fallbackSyncHandle(widget.bootstrap.fallbackSyncStatus);
           context.go(
             AppRoutes.results,
             extra: syncHandle == null
@@ -114,6 +151,14 @@ class _CommasScreenState extends State<CommasScreen> {
     if (remaining > 1) return '$remaining commas left';
     return 'Tap the spaces where commas are missing.';
   }
+
+  BackendResultSyncHandle? _fallbackSyncHandle(BackendSyncStatus? status) {
+    if (status == null) return null;
+    final BackendResultSyncHandle handle = BackendResultSyncHandle();
+    handle.setStatus(status);
+    handle.complete();
+    return handle;
+  }
 }
 
 class _PromptStage extends StatelessWidget {
@@ -163,6 +208,7 @@ class _PromptStage extends StatelessWidget {
                 CommaFeedback(
                   status: state.status,
                   feedbackText: state.feedbackText,
+                  explanation: state.promptExplanation,
                 ),
               ],
             ),

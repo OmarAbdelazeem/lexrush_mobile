@@ -1,4 +1,5 @@
 enum CommaRuleType {
+  general,
   location,
   date,
   list,

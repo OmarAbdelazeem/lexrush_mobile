@@ -192,6 +192,7 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
         wrongGapIndexes: <int>[],
         remainingCommaCount: prompt.insertionPoints.length,
         clearFeedbackText: true,
+        clearPromptExplanation: true,
         clearFlashGap: true,
         promptCompleted: false,
       ),
@@ -227,8 +228,8 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
           : token;
     }).toList();
     final int nextCombo = state.combo + 1;
-    final int remaining =
-        (state.currentPrompt?.insertionPoints.length ?? 0) - placed.length;
+    final CommaPrompt? prompt = state.currentPrompt;
+    final int remaining = (prompt?.insertionPoints.length ?? 0) - placed.length;
     final bool completed = remaining == 0;
     final int points =
         CommaScoringService.correctCommaPoints +
@@ -247,6 +248,7 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
         tokens: tokens,
         remainingCommaCount: remaining,
         feedbackText: completed ? 'Sentence complete +100' : '+100',
+        promptExplanation: completed ? prompt?.explanation : null,
         clearFlashGap: true,
         promptCompleted: completed,
         sentencesCompleted: completed

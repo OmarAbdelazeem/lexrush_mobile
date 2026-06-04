@@ -38,6 +38,7 @@ void main() {
         expect(cubit.state.placedCommaIndexes, contains(6));
         expect(cubit.state.tokens[6].commaPlacedAfter, isTrue);
         expect(cubit.state.status, CommasStatus.sentenceComplete);
+        expect(cubit.state.promptExplanation, contains('city'));
 
         cubit.close();
       });
@@ -87,6 +88,7 @@ void main() {
         async.elapse(const Duration(milliseconds: 851));
 
         expect(cubit.state.currentPrompt!.id, 'date_beginner_001');
+        expect(cubit.state.promptExplanation, isNull);
         expect(cubit.state.remainingCommaCount, 1);
         expect(cubit.state.status, CommasStatus.playing);
         cubit.submitGap(2);

@@ -81,15 +81,17 @@ class BackendResultSyncService {
   final String _gameId;
   final LexRushBackendRepository _repository;
 
-  Future<String?>? _sessionIdFuture;
+  Future<CreateGameSessionResponse?>? _sessionFuture;
+  CreateGameSessionResponse? _sessionResponse;
   String? _sessionId;
   bool _submissionTerminal = false;
 
   UserProgressResponse? latestProgress;
   UserSkillsResponse? latestSkills;
 
-  void startSession() {
-    _sessionIdFuture ??= _createSession();
+  Future<CreateGameSessionResponse?> startSession() {
+    _sessionFuture ??= _createSession();
+    return _sessionFuture!;
   }
 
   Future<void> submitSummary(SubmitGameResultRequest request) async {
@@ -121,7 +123,8 @@ class BackendResultSyncService {
       return;
     }
 
-    final String? sessionId = await (_sessionIdFuture ??= _createSession());
+    final CreateGameSessionResponse? session = await startSession();
+    final String? sessionId = session?.sessionId;
     if (sessionId == null) {
       debugPrint('[BackendResultSync] $_gameId skipped: no backend session');
       handle.setStatus(
@@ -168,13 +171,14 @@ class BackendResultSyncService {
     }
   }
 
-  Future<String?> _createSession() async {
+  Future<CreateGameSessionResponse?> _createSession() async {
     try {
       final CreateGameSessionResponse response = await _repository
           .createGameSession(_gameId);
+      _sessionResponse = response;
       _sessionId = response.sessionId;
       debugPrint('[BackendResultSync] $_gameId session created: $_sessionId');
-      return _sessionId;
+      return _sessionResponse;
     } on ApiException catch (error) {
       if (error.isAuthRequired) return null;
       debugPrint(
