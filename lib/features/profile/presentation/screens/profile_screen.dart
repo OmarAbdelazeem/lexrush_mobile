@@ -9,7 +9,9 @@ import 'package:lexrush/features/auth/application/auth_state.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_cubit.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_state.dart';
 import 'package:lexrush/features/profile/data/backend_profile_repository.dart';
+import 'package:lexrush/features/profile/presentation/widgets/achievement_card.dart';
 import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
+import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
@@ -228,6 +230,110 @@ class _LoadedProfile extends StatelessWidget {
                 child: _SkillCard(skill: skill),
               ),
             ),
+          const SizedBox(height: 10),
+          Text('Achievements', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          _AchievementsSection(state: state),
+        ],
+      ),
+    );
+  }
+}
+
+class _AchievementsSection extends StatelessWidget {
+  const _AchievementsSection({required this.state});
+
+  final ProfileState state;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (state.achievementsStatus) {
+      case ProfileAchievementsStatus.initial:
+      case ProfileAchievementsStatus.loading:
+        return const _AchievementsLoadingCard();
+      case ProfileAchievementsStatus.error:
+        return _InlineInfoCard(
+          message:
+              state.achievementsErrorMessage ??
+              'Achievements are unavailable right now.',
+          icon: Icons.cloud_off_rounded,
+          color: AppColors.error,
+        );
+      case ProfileAchievementsStatus.loaded:
+        if (state.achievements.isEmpty) {
+          return const _InlineInfoCard(
+            message: 'Complete sessions to unlock achievements.',
+            icon: Icons.workspace_premium_rounded,
+            color: AppColors.accent,
+          );
+        }
+        return Column(
+          children: state.achievements
+              .map(
+                (UserAchievementDto achievement) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: AchievementCard(achievement: achievement),
+                ),
+              )
+              .toList(),
+        );
+    }
+  }
+}
+
+class _AchievementsLoadingCard extends StatelessWidget {
+  const _AchievementsLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Row(
+        children: <Widget>[
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 12),
+          Text('Loading achievements...'),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineInfoCard extends StatelessWidget {
+  const _InlineInfoCard({
+    required this.message,
+    required this.icon,
+    required this.color,
+  });
+
+  final String message;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message, style: Theme.of(context).textTheme.bodyLarge),
+          ),
         ],
       ),
     );

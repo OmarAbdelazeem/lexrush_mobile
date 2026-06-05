@@ -20,6 +20,7 @@ import 'package:lexrush/shared/application/services/backend_result_mappers.dart'
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
+import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
@@ -113,6 +114,48 @@ void main() {
       expect(emptySkills.skills, isEmpty);
       expect(skills.skills.single.skillId, 'punctuation');
     });
+
+    test('maps achievements response preserving backend order', () {
+      final UserAchievementsResponse response =
+          UserAchievementsResponse.fromJson(<String, dynamic>{
+            'achievements': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'achievementId': 'first_step',
+                'title': 'First Step',
+                'description': 'Complete your first session',
+                'category': 'milestone',
+                'status': 'unlocked',
+                'progress': 1,
+                'target': 1,
+                'unlockedAt': '2026-06-01T12:00:00.000Z',
+                'iconKey': 'achievement_first_step',
+              },
+              <String, dynamic>{
+                'achievementId': 'getting_warmed_up',
+                'title': 'Getting Warmed Up',
+                'description': 'Complete five sessions',
+                'category': 'milestone',
+                'status': 'locked',
+                'progress': 2,
+                'target': 5,
+                'unlockedAt': null,
+                'iconKey': 'achievement_getting_warmed_up',
+              },
+            ],
+          });
+
+      expect(
+        response.achievements.map(
+          (UserAchievementDto achievement) => achievement.achievementId,
+        ),
+        <String>['first_step', 'getting_warmed_up'],
+      );
+      expect(response.achievements.first.isUnlocked, isTrue);
+      expect(response.achievements.first.unlockedAt, isNotNull);
+      expect(response.achievements.last.isUnlocked, isFalse);
+      expect(response.achievements.last.progress, 2);
+      expect(response.achievements.last.target, 5);
+    });
   });
 
   group('ApiClient and repository', () {
@@ -188,6 +231,26 @@ void main() {
               200,
             );
           }
+          if (request.url.path == '/me/achievements') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'achievements': <dynamic>[
+                  <String, dynamic>{
+                    'achievementId': 'first_step',
+                    'title': 'First Step',
+                    'description': 'Complete your first session',
+                    'category': 'milestone',
+                    'status': 'unlocked',
+                    'progress': 1,
+                    'target': 1,
+                    'unlockedAt': '2026-06-01T12:00:00.000Z',
+                    'iconKey': 'achievement_first_step',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
           return http.Response('{}', 404);
         }),
       );
@@ -213,6 +276,8 @@ void main() {
       );
       await repository.getMyProgress();
       await repository.getMySkills();
+      final UserAchievementsResponse achievements = await repository
+          .getMyAchievements();
 
       expect(
         requests.every(
@@ -220,6 +285,11 @@ void main() {
               request.headers['Authorization'] == 'Bearer access-1',
         ),
         isTrue,
+      );
+      expect(achievements.achievements.single.achievementId, 'first_step');
+      expect(
+        requests.map((http.Request request) => request.url.path),
+        contains('/me/achievements'),
       );
     });
 

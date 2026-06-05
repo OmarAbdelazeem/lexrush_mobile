@@ -5,6 +5,7 @@ import 'package:lexrush/features/profile/application/cubit/profile_cubit.dart';
 import 'package:lexrush/features/profile/application/cubit/profile_state.dart';
 import 'package:lexrush/features/profile/domain/contracts/profile_repository.dart';
 import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
+import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
 
@@ -27,6 +28,21 @@ void main() {
               ),
             ],
           ),
+          achievements: const UserAchievementsResponse(
+            achievements: <UserAchievementDto>[
+              UserAchievementDto(
+                achievementId: 'first_step',
+                title: 'First Step',
+                description: 'Complete your first session',
+                category: 'milestone',
+                status: 'unlocked',
+                progress: 1,
+                target: 1,
+                unlockedAt: '2026-06-01T12:00:00.000Z',
+                iconKey: 'achievement_first_step',
+              ),
+            ],
+          ),
         ),
       );
 
@@ -35,6 +51,8 @@ void main() {
       expect(cubit.state.status, ProfileStatus.loaded);
       expect(cubit.state.progress!.totalXp, 194);
       expect(cubit.state.skills.single.skillId, 'punctuation');
+      expect(cubit.state.achievementsStatus, ProfileAchievementsStatus.loaded);
+      expect(cubit.state.achievements.single.achievementId, 'first_step');
 
       await cubit.close();
     });
@@ -55,6 +73,43 @@ void main() {
       expect(cubit.state.status, ProfileStatus.emptySkills);
       expect(cubit.state.progress!.sessionsCompleted, 6);
       expect(cubit.state.skills, isEmpty);
+      expect(cubit.state.achievementsStatus, ProfileAchievementsStatus.loaded);
+      expect(cubit.state.achievements, isEmpty);
+
+      await cubit.close();
+    });
+
+    test('achievement failure keeps loaded progress and skills', () async {
+      final ProfileCubit cubit = ProfileCubit(
+        repository: _FakeProfileRepository(
+          progress: _progress(),
+          skills: const UserSkillsResponse(
+            userId: 'dev-user-001',
+            skills: <SkillProgressDto>[
+              SkillProgressDto(
+                skillId: 'punctuation',
+                level: 5,
+                masteryScore: 0.5,
+                accuracy: 0.46,
+                recentTrend: 'improving',
+                confidence: 0.45,
+              ),
+            ],
+          ),
+          achievementsError: Exception('achievements offline'),
+        ),
+      );
+
+      await cubit.load();
+
+      expect(cubit.state.status, ProfileStatus.loaded);
+      expect(cubit.state.skills.single.skillId, 'punctuation');
+      expect(cubit.state.achievements, isEmpty);
+      expect(cubit.state.achievementsStatus, ProfileAchievementsStatus.error);
+      expect(
+        cubit.state.achievementsErrorMessage,
+        'Achievements are unavailable right now.',
+      );
 
       await cubit.close();
     });
@@ -68,6 +123,7 @@ void main() {
 
       expect(cubit.state.status, ProfileStatus.error);
       expect(cubit.state.errorMessage, 'Progress is unavailable right now.');
+      expect(cubit.state.achievementsStatus, ProfileAchievementsStatus.error);
 
       await cubit.close();
     });
@@ -160,11 +216,21 @@ UserProgressResponse _progress() {
 }
 
 class _FakeProfileRepository implements ProfileRepository {
-  const _FakeProfileRepository({this.progress, this.skills, this.error});
+  const _FakeProfileRepository({
+    this.progress,
+    this.skills,
+    this.achievements = const UserAchievementsResponse(
+      achievements: <UserAchievementDto>[],
+    ),
+    this.error,
+    this.achievementsError,
+  });
 
   final UserProgressResponse? progress;
   final UserSkillsResponse? skills;
+  final UserAchievementsResponse achievements;
   final Object? error;
+  final Object? achievementsError;
 
   @override
   Future<UserProgressResponse> getProgress() async {
@@ -177,11 +243,21 @@ class _FakeProfileRepository implements ProfileRepository {
     if (error != null) throw error!;
     return skills!;
   }
+
+  @override
+  Future<UserAchievementsResponse> getAchievements() async {
+    final Object? error = achievementsError;
+    if (error != null) throw error;
+    return achievements;
+  }
 }
 
 class _QueuedProfileRepository implements ProfileRepository {
   UserProgressResponse? progress;
   UserSkillsResponse? skills;
+  UserAchievementsResponse achievements = const UserAchievementsResponse(
+    achievements: <UserAchievementDto>[],
+  );
 
   @override
   Future<UserProgressResponse> getProgress() async {
@@ -195,6 +271,11 @@ class _QueuedProfileRepository implements ProfileRepository {
     final UserSkillsResponse? value = skills;
     if (value == null) throw Exception('offline');
     return value;
+  }
+
+  @override
+  Future<UserAchievementsResponse> getAchievements() async {
+    return achievements;
   }
 }
 

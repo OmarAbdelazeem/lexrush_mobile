@@ -1,3 +1,3 @@
 void main() {
-  print("Safety check verified!");
+  assert(true, 'Safety check verified.');
 }

@@ -8,6 +8,7 @@ import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
+import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -344,6 +345,11 @@ class _FakeBackendRepository implements LexRushBackendRepository {
 
   @override
   Future<UserSkillsResponse> getMySkills() async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<UserAchievementsResponse> getMyAchievements() async {
     throw UnimplementedError();
   }
 

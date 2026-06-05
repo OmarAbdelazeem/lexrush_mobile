@@ -1,5 +1,6 @@
 import 'package:lexrush/features/profile/domain/contracts/profile_repository.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
 
@@ -16,5 +17,10 @@ class BackendProfileRepository implements ProfileRepository {
   @override
   Future<UserSkillsResponse> getSkills() {
     return _backendRepository.getMySkills();
+  }
+
+  @override
+  Future<UserAchievementsResponse> getAchievements() {
+    return _backendRepository.getMyAchievements();
   }
 }
