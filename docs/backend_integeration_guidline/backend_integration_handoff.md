@@ -1160,4 +1160,192 @@ When Flutter is ready to consume Association backend snapshots instead of local 
 - The anti-repetition and difficulty-selection logic already applied to Association — no changes needed
 - The smoke test (`npm run smoke:phase4`) continues to pass unchanged
 
-The app already has enough local games for the backend progress system to become meaningful. Connecting XP, streaks, sessions, and skills will make LexRush feel more like a real training platform instead of a collection of isolated local mini-games.
+---
+
+# 23. Antonym Rush Prompt Snapshots (v2) — Phase 8b
+
+## 23.1 What Changed
+
+The Antonym Rush game's backend prompt bank has been migrated to a v2 content shape. The backend now returns fully-populated prompt snapshots for `POST /game-sessions { "gameId": "antonym_rush" }`.
+
+**Prompt count:** 40 (10 beginner + 10 easy + 10 medium + 10 hard)
+
+**contentJson shape (v2):**
+
+```json
+{
+  "targetWord": "ANCIENT",
+  "choices": [
+    { "id": "a", "text": "old" },
+    { "id": "b", "text": "historic" },
+    { "id": "c", "text": "modern" },
+    { "id": "d", "text": "rustic" }
+  ],
+  "partOfSpeech": "adjective",
+  "category": "time"
+}
+```
+
+- `targetWord` — the word the player must find the antonym for (uppercase)
+- `choices` — always exactly **four** objects with `id` (`"a"`, `"b"`, `"c"`, `"d"`) and `text` (lowercase)
+- `partOfSpeech` — part of speech string (e.g. `adjective`, `verb`, `noun`)
+- `category` — semantic domain string (e.g. `time`, `character`, `emotion`, `finance`)
+
+**answerJson shape (v2):**
+
+```json
+{
+  "correctChoiceId": "c"
+}
+```
+
+- `correctChoiceId` — `"a"`, `"b"`, `"c"`, or `"d"`; identifies the correct choice by its `id` field
+
+**Top-level fields now populated:**
+
+- `explanation` — non-null, non-empty string teaching the contrast between the target and its antonym
+- `ruleType` — `"antonym_choice"` (was `null`)
+
+## 23.2 Full Snapshot Example
+
+```json
+{
+  "orderIndex": 0,
+  "promptId": "uuid",
+  "contentJson": {
+    "targetWord": "ANCIENT",
+    "choices": [
+      { "id": "a", "text": "old" },
+      { "id": "b", "text": "historic" },
+      { "id": "c", "text": "modern" },
+      { "id": "d", "text": "rustic" }
+    ],
+    "partOfSpeech": "adjective",
+    "category": "time"
+  },
+  "answerJson": {
+    "correctChoiceId": "c"
+  },
+  "difficulty": 2,
+  "difficultyTag": "easy",
+  "ruleType": "antonym_choice",
+  "skillTags": ["vocabulary", "precision", "processing_speed", "attention"],
+  "explanation": "Ancient means from very long ago; modern means from the present or recent times."
+}
+```
+
+## 23.3 Flutter Migration Checklist
+
+When Flutter is ready to consume Antonym Rush backend snapshots instead of local content:
+
+- [ ] Parse `contentJson.targetWord` (unchanged from local — still uppercase)
+- [ ] Parse `contentJson.choices` as a `List<{id: String, text: String}>` of **4 items**
+- [ ] Use `answerJson.correctChoiceId` (`"a"`/`"b"`/`"c"`/`"d"`) to find the correct choice by matching `choice.id`
+- [ ] Display `explanation` as post-attempt feedback (always non-null for v2 prompts)
+- [ ] `ruleType` is now `"antonym_choice"` — Flutter must not break if it receives this value
+- [ ] `contentJson.partOfSpeech` and `contentJson.category` are optional enrichment fields
+- [ ] **Do not remove local fallback** until the Flutter Antonym Rush game is verified to work with backend snapshots end-to-end
+
+## 23.4 Correctness Guarantees
+
+- Every prompt has exactly **4** choices (matching the Flutter game's 4-balloon UI)
+- `correctChoiceId` always matches a valid `id` in the `choices` array
+- `correctChoiceId` is balanced: exactly **25% each** for `"a"`, `"b"`, `"c"`, `"d"` — the antonym is never systematically at a fixed position
+- No prompt has duplicate choice text (case-insensitive)
+- The correct choice text is never identical to the targetWord
+- Explanations are curated — no runtime AI answer detection
+
+## 23.5 No Breaking Changes
+
+- The session response DTO shape is unchanged
+- The result submission contract is unchanged
+- No `answerEvents` are required
+- The anti-repetition and beginner-cap selection logic already applies to Antonym Rush — no changes needed
+- The smoke test (`npm run smoke:phase4`) continues to pass unchanged (35/35)
+
+---
+
+# 24. Sequencing Memory v2 Prompt Snapshots
+
+## 24.1 Status
+
+The `sequencing_memory` prompt bank has been upgraded to v2 format. The backend now returns
+fully playable prompt snapshots from `POST /game-sessions { "gameId": "sequencing_memory" }`.
+
+The session returns **3 prompts** (existing `promptCount`) from a **20-prompt** bank.
+
+## 24.2 Prompt Snapshot Shape
+
+```json
+{
+  "orderIndex": 0,
+  "promptId": "uuid",
+  "contentJson": {
+    "sequenceId": "baker_street_01",
+    "theme": "city_directions",
+    "memoryHint": "Picture yourself walking each part before joining both halves.",
+    "items": [
+      { "id": "a", "text": "Turn right on Baker Street" },
+      { "id": "b", "text": "Pass the post office" },
+      { "id": "c", "text": "Turn left on Market Lane" },
+      { "id": "d", "text": "Stop at the green door" }
+    ],
+    "partOne": ["Turn right on Baker Street", "Pass the post office"],
+    "partTwo": ["Turn left on Market Lane", "Stop at the green door"],
+    "combined": ["Turn right on Baker Street", "Pass the post office", "Turn left on Market Lane", "Stop at the green door"]
+  },
+  "answerJson": {
+    "correctOrder": ["a", "b", "c", "d"]
+  },
+  "difficulty": 1,
+  "difficultyTag": "beginner",
+  "ruleType": "sequence_order",
+  "skillTags": ["working_memory", "sequencing", "attention"],
+  "explanation": "Break the route into two short halves. Picture yourself walking each section before joining them."
+}
+```
+
+## 24.3 Flutter Consumption Notes
+
+- `contentJson.partOne` and `contentJson.partTwo` are the **same string arrays** the existing Flutter game reads from local data — no model changes needed for initial integration
+- `contentJson.combined` = `[...partOne, ...partTwo]` — the full sequence in correct order
+- `contentJson.items` provides **stable IDs** (`"a"`, `"b"`, ...) for each step — useful for future `answerEvents` support
+- `answerJson.correctOrder` lists the item IDs in the correct sequence order — currently unused by Flutter (no answerEvents yet), but present for future validation
+- `contentJson.memoryHint` can be shown as an optional UI tip during the listen phase
+- `ruleType` is always `"sequence_order"` for this game
+- `explanation` is always non-empty and can be shown on the feedback screen
+
+## 24.4 Difficulty Distribution (20 prompts)
+
+| difficultyTag | difficulty | items (total) | beginnerSafe | count |
+|---|---|---|---|---|
+| beginner | 1 | 4 (2+2) | true | 6 |
+| medium | 2 | 6 (3+3) | false | 8 |
+| hard | 3 | 8 (4+4) | false | 6 |
+
+Difficulty 1–3 is intentional for Sequencing Memory (versus 1–4 for games like Commas). The item
+count per part scales with difficulty: 2 items per half for beginner, 3 for medium, 4 for hard.
+
+## 24.5 Themes
+
+Prompts cover six themes for variety across sessions:
+`city_directions`, `daily_routine`, `cooking_steps`, `nature_trail`, `morning_commute`, `emergency_procedure`
+
+## 24.6 Session clientRules
+
+```json
+{
+  "promptCount": 3,
+  "timeLimitSeconds": 120,
+  "showTimer": true,
+  "phases": ["listen", "recall"]
+}
+```
+
+## 24.7 No Breaking Changes
+
+- Session response DTO shape is unchanged
+- Result submission contract is unchanged — summary-only, no `answerEvents`
+- Local Flutter fallback remains in place for when backend is unavailable
+- Existing `partOne`/`partTwo`/`combined` fields are preserved for full backward compatibility
+- The smoke test (`npm run smoke:phase4`) passes unchanged (35/35)

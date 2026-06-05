@@ -13,15 +13,19 @@ class AntonymRoundGenerator {
     required this.pairs,
     required this.difficultyService,
     Random? random,
-  }) : _random = random ?? Random();
+    bool preservePromptOrder = false,
+  }) : _random = random ?? Random(),
+       _preservePromptOrder = preservePromptOrder;
 
   final List<AntonymPair> pairs;
   final AntonymDifficultyService difficultyService;
   final Random _random;
+  final bool _preservePromptOrder;
   List<int> _queue = <int>[];
   List<int> _beginnerQueue = <int>[];
   int _roundId = 0;
   int _optionId = 0;
+  int _orderedPairIndex = 0;
   static const int _beginnerRoundCount = 5;
 
   void reset() {
@@ -30,20 +34,46 @@ class AntonymRoundGenerator {
     _beginnerQueue = <int>[];
     _roundId = 0;
     _optionId = 0;
+    _orderedPairIndex = 0;
   }
 
   AntonymRound generate({required int timeLeft, required int wordsSolved}) {
     final int nextRoundId = _roundId + 1;
     final bool beginnerRound = nextRoundId <= _beginnerRoundCount;
     final phase = difficultyService.phaseForTimeLeft(timeLeft);
-    final AntonymPair pair = beginnerRound
+    final AntonymPair pair = _preservePromptOrder
+        ? _nextOrderedPair()
+        : beginnerRound
         ? _nextBeginnerPair()
         : _nextPair(phase: phase, timeLeft: timeLeft, wordsSolved: wordsSolved);
+    final List<BalloonOption> options = _preservePromptOrder
+        ? _backendOptions(pair)
+        : _localOptions(pair);
+    final String correctAnswer = options
+        .firstWhere((BalloonOption option) => option.isCorrect)
+        .word;
+    final AntonymRound round = AntonymRound(
+      roundId: nextRoundId,
+      targetWord: pair.word,
+      correctAnswer: correctAnswer,
+      pairDifficulty: pair.difficulty,
+      options: options,
+      startedAt: DateTime.now(),
+      explanation: pair.explanation,
+    );
+    _roundId = nextRoundId;
+    debugPrint(
+      '[AntonymRoundGenerator] round=${round.roundId} word=${pair.word} phase=$phase',
+    );
+    return round;
+  }
+
+  List<BalloonOption> _localOptions(AntonymPair pair) {
     final List<String> distractors = <String>[...pair.distractors]
       ..shuffle(_random);
     final List<String> answers = <String>[pair.antonym, ...distractors.take(3)]
       ..shuffle(_random);
-    final List<BalloonOption> options = answers
+    return answers
         .map(
           (String answer) => BalloonOption(
             id: 'option-${++_optionId}',
@@ -52,19 +82,20 @@ class AntonymRoundGenerator {
           ),
         )
         .toList(growable: false);
-    final AntonymRound round = AntonymRound(
-      roundId: nextRoundId,
-      targetWord: pair.word,
-      correctAnswer: pair.antonym,
-      pairDifficulty: pair.difficulty,
-      options: options,
-      startedAt: DateTime.now(),
-    );
-    _roundId = nextRoundId;
-    debugPrint(
-      '[AntonymRoundGenerator] round=${round.roundId} word=${pair.word} phase=$phase',
-    );
-    return round;
+  }
+
+  List<BalloonOption> _backendOptions(AntonymPair pair) {
+    final List<AntonymPairOption> options =
+        pair.backendOptions ?? const <AntonymPairOption>[];
+    return options
+        .map(
+          (AntonymPairOption option) => BalloonOption(
+            id: option.id,
+            word: option.word,
+            isCorrect: option.isCorrect,
+          ),
+        )
+        .toList(growable: false);
   }
 
   AntonymPair _nextBeginnerPair() {
@@ -83,6 +114,12 @@ class AntonymRoundGenerator {
       _beginnerQueue = <int>[...beginnerIndices]..shuffle(_random);
     }
     return pairs[_beginnerQueue.removeAt(0)];
+  }
+
+  AntonymPair _nextOrderedPair() {
+    final AntonymPair pair = pairs[_orderedPairIndex % pairs.length];
+    _orderedPairIndex += 1;
+    return pair;
   }
 
   AntonymPair _nextPair({

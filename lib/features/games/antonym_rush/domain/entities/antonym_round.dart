@@ -11,6 +11,7 @@ class AntonymRound extends Equatable {
     required this.options,
     required this.startedAt,
     this.answered = false,
+    this.explanation,
   });
 
   final int roundId;
@@ -20,6 +21,7 @@ class AntonymRound extends Equatable {
   final List<BalloonOption> options;
   final DateTime startedAt;
   final bool answered;
+  final String? explanation;
 
   AntonymRound copyWith({bool? answered}) {
     return AntonymRound(
@@ -30,17 +32,19 @@ class AntonymRound extends Equatable {
       options: options,
       startedAt: startedAt,
       answered: answered ?? this.answered,
+      explanation: explanation,
     );
   }
 
   @override
-  List<Object> get props => <Object>[
-        roundId,
-        targetWord,
-        correctAnswer,
-        pairDifficulty,
-        options,
-        startedAt,
-        answered,
-      ];
+  List<Object?> get props => <Object?>[
+    roundId,
+    targetWord,
+    correctAnswer,
+    pairDifficulty,
+    options,
+    startedAt,
+    answered,
+    explanation,
+  ];
 }

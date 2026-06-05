@@ -6,10 +6,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
+import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/games/antonym_rush/application/cubit/antonym_rush_cubit.dart';
 import 'package:lexrush/features/games/antonym_rush/application/cubit/antonym_rush_state.dart';
+import 'package:lexrush/features/games/antonym_rush/application/services/antonym_rush_backend_bootstrap.dart';
 import 'package:lexrush/features/games/antonym_rush/domain/entities/balloon_option.dart';
+import 'package:lexrush/features/games/antonym_rush/domain/services/antonym_difficulty_service.dart';
+import 'package:lexrush/features/games/antonym_rush/domain/services/antonym_round_generator.dart';
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/application/services/pending_result_queue.dart';
@@ -34,24 +38,80 @@ class AntonymRushScreen extends StatefulWidget {
 }
 
 class _AntonymRushScreenState extends State<AntonymRushScreen> {
+  Future<AntonymRushBootstrapResult>? _bootstrapFuture;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_bootstrapFuture != null) return;
+    _bootstrapFuture = AntonymRushBackendBootstrap(
+      repository: context.read<LexRushBackendRepository>(),
+      pendingQueue: context.read<PendingResultQueue>(),
+      userId: context.read<AuthCubit>().state.user?.userId,
+    ).load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<AntonymRushBootstrapResult>(
+      future: _bootstrapFuture,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<AntonymRushBootstrapResult> snapshot,
+          ) {
+            if (!snapshot.hasData) {
+              return const PortraitShell(
+                child: Center(child: Text('Preparing Antonym Rush…')),
+              );
+            }
+            return _AntonymRushGameplay(
+              bootstrap: snapshot.requireData,
+              gameTitle: widget.gameTitle,
+              promptLabel: widget.promptLabel,
+            );
+          },
+    );
+  }
+}
+
+class _AntonymRushGameplay extends StatefulWidget {
+  const _AntonymRushGameplay({
+    required this.bootstrap,
+    required this.gameTitle,
+    required this.promptLabel,
+  });
+
+  final AntonymRushBootstrapResult bootstrap;
+  final String gameTitle;
+  final String promptLabel;
+
+  @override
+  State<_AntonymRushGameplay> createState() => _AntonymRushGameplayState();
+}
+
+class _AntonymRushGameplayState extends State<_AntonymRushGameplay> {
   final Map<String, bool> _visibilityByOption = <String, bool>{};
   Timer? _deadframeGuardTimer;
   Timer? _feedbackLatchTimer;
   String? _latchedFeedbackText;
   RoundOutcome? _latchedFeedbackOutcome;
-  BackendResultSyncService? _syncService;
   bool _navigatedToResults = false;
+  BackendResultSyncService? _resultSyncService;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_syncService != null) return;
-    _syncService = BackendResultSyncService(
+    if (!widget.bootstrap.createResultSyncOnFinish ||
+        _resultSyncService != null) {
+      return;
+    }
+    _resultSyncService = BackendResultSyncService(
       gameId: BackendGameIds.antonymRush,
       repository: context.read<LexRushBackendRepository>(),
       pendingQueue: context.read<PendingResultQueue>(),
       userId: context.read<AuthCubit>().state.user?.userId,
-    )..startSession();
+    );
   }
 
   @override
@@ -114,7 +174,18 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<AntonymRushCubit>(
-      create: (_) => AntonymRushCubit()..start(),
+      create: (_) {
+        const AntonymDifficultyService difficultyService =
+            AntonymDifficultyService();
+        return AntonymRushCubit(
+          difficultyService: difficultyService,
+          roundGenerator: AntonymRoundGenerator(
+            pairs: widget.bootstrap.prompts,
+            difficultyService: difficultyService,
+            preservePromptOrder: widget.bootstrap.usedBackendPrompts,
+          ),
+        )..start();
+      },
       child: BlocConsumer<AntonymRushCubit, AntonymRushState>(
         listener: (BuildContext context, AntonymRushState state) {
           if (!_navigatedToResults &&
@@ -122,10 +193,14 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
               state.gameResult != null) {
             debugPrint('[AntonymRushScreen] session ended -> go results');
             _navigatedToResults = true;
-            final BackendResultSyncHandle? syncHandle = _syncService
-                ?.submitSummaryWithHandle(
+            final BackendResultSyncHandle? syncHandle =
+                widget.bootstrap.syncService?.submitSummaryWithHandle(
                   BackendResultMappers.antonymRush(state.gameResult!),
-                );
+                ) ??
+                _resultSyncService?.submitSummaryWithHandle(
+                  BackendResultMappers.antonymRush(state.gameResult!),
+                ) ??
+                _fallbackSyncHandle(widget.bootstrap.fallbackSyncStatus);
             context.go(
               AppRoutes.results,
               extra: syncHandle == null
@@ -459,6 +534,14 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
         },
       ),
     );
+  }
+
+  BackendResultSyncHandle? _fallbackSyncHandle(BackendSyncStatus? status) {
+    if (status == null) return null;
+    final BackendResultSyncHandle handle = BackendResultSyncHandle();
+    handle.setStatus(status);
+    handle.complete();
+    return handle;
   }
 }
 
