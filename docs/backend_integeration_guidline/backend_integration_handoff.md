@@ -1059,4 +1059,105 @@ Proceed with backend integration now.
 
 Do not build more games before connecting progress/results.
 
+---
+
+# 22. Association Prompt Snapshots (v2) — Phase 8
+
+## 22.1 What Changed
+
+The Association game's backend prompt bank has been migrated to a v2 content shape. The backend now returns fully-populated prompt snapshots for `POST /game-sessions { "gameId": "association" }`.
+
+**Prompt count:** 50 (15 beginner + 15 easy + 10 medium + 10 hard)
+
+**contentJson shape (v2):**
+
+```json
+{
+  "target": "ocean",
+  "choices": [
+    { "id": "a", "text": "wave" },
+    { "id": "b", "text": "flame" }
+  ],
+  "contextHint": null,
+  "category": "nature"
+}
+```
+
+- `target` — the concept word or phrase (previously `targetWord`)
+- `choices` — always exactly two objects with `id` (`"a"` or `"b"`) and `text`
+- `contextHint` — non-null for all medium and hard prompts; hints at which sense of the word to use
+- `category` — semantic domain string (e.g. `nature`, `science`, `language`)
+
+**answerJson shape (v2):**
+
+```json
+{
+  "correctChoiceId": "a"
+}
+```
+
+- `correctChoiceId` — `"a"` or `"b"`; identifies the correct choice by its `id` field
+
+**Top-level fields now populated:**
+
+- `explanation` — non-null, non-empty string explaining why the correct association is closer
+- `ruleType` — `"semantic_association"` (was `null`)
+
+## 22.2 Full Snapshot Example
+
+```json
+{
+  "orderIndex": 0,
+  "promptId": "uuid",
+  "contentJson": {
+    "target": "ocean",
+    "choices": [
+      { "id": "a", "text": "wave" },
+      { "id": "b", "text": "flame" }
+    ],
+    "contextHint": null,
+    "category": "nature"
+  },
+  "answerJson": {
+    "correctChoiceId": "a"
+  },
+  "difficulty": 1,
+  "difficultyTag": "beginner",
+  "ruleType": "semantic_association",
+  "skillTags": ["semantic_reasoning", "vocabulary"],
+  "explanation": "Waves are formed on the surface of the ocean."
+}
+```
+
+## 22.3 Flutter Migration Checklist
+
+When Flutter is ready to consume Association backend snapshots instead of local content:
+
+- [ ] Parse `contentJson.target` as the root/target word (not `targetWord`)
+- [ ] Parse `contentJson.choices` as a `List<{id: String, text: String}>`
+- [ ] Use `answerJson.correctChoiceId` (`"a"` or `"b"`) to identify the correct choice by matching `choice.id`
+- [ ] Display `explanation` as post-attempt feedback (always non-null for v2 prompts)
+- [ ] Use `contentJson.contextHint` (nullable) to show disambiguation context when present
+- [ ] `ruleType` is now `"semantic_association"` — Flutter must not break if it receives this value
+- [ ] `contentJson.category` is informational — Flutter may use it for grouping or may ignore it
+
+**Do not remove local fallback** until the Flutter association game is verified to work with backend snapshots end-to-end.
+
+## 22.4 Correctness Guarantees
+
+- Every prompt has exactly two choices
+- `correctChoiceId` always matches a valid `id` in the `choices` array
+- `correctChoiceId` is balanced: approximately 50% `"a"`, 50% `"b"` — the correct answer is never systematically in the first or second slot
+- All medium and hard prompts include a `contextHint` to disambiguate polysemous words
+- No prompt has duplicate choice text
+- Explanations are curated — there is no runtime AI answer detection
+
+## 22.5 No Breaking Changes
+
+- The session response DTO shape is unchanged
+- The result submission contract is unchanged
+- No `answerEvents` are required
+- The anti-repetition and difficulty-selection logic already applied to Association — no changes needed
+- The smoke test (`npm run smoke:phase4`) continues to pass unchanged
+
 The app already has enough local games for the backend progress system to become meaningful. Connecting XP, streaks, sessions, and skills will make LexRush feel more like a real training platform instead of a collection of isolated local mini-games.

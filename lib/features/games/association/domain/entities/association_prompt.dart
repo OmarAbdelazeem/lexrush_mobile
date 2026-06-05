@@ -12,6 +12,8 @@ class AssociationPrompt extends Equatable {
     required this.difficulty,
     this.beginnerSafe = false,
     this.contextHint,
+    this.correctChoiceId,
+    this.wrongChoiceId,
   });
 
   final String targetWord;
@@ -22,6 +24,8 @@ class AssociationPrompt extends Equatable {
   final AssociationDifficulty difficulty;
   final bool beginnerSafe;
   final String? contextHint;
+  final String? correctChoiceId;
+  final String? wrongChoiceId;
 
   @override
   List<Object?> get props => <Object?>[
@@ -33,5 +37,7 @@ class AssociationPrompt extends Equatable {
     difficulty,
     beginnerSafe,
     contextHint,
+    correctChoiceId,
+    wrongChoiceId,
   ];
 }

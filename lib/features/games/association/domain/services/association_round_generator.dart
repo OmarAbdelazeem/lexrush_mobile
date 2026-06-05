@@ -12,22 +12,27 @@ class AssociationRoundGenerator {
     Random? random,
     AssociationDifficultyService difficultyService =
         const AssociationDifficultyService(),
+    bool preservePromptOrder = false,
   }) : _allPrompts = prompts,
        _random = random ?? Random(),
-       _difficultyService = difficultyService;
+       _difficultyService = difficultyService,
+       _preservePromptOrder = preservePromptOrder;
 
   final List<AssociationPrompt> _allPrompts;
   final Random _random;
   final AssociationDifficultyService _difficultyService;
+  final bool _preservePromptOrder;
   final Map<AssociationDifficulty, List<AssociationPrompt>> _queues =
       <AssociationDifficulty, List<AssociationPrompt>>{};
   final List<AssociationPrompt> _beginnerQueue = <AssociationPrompt>[];
   int _roundId = 0;
+  int _orderedPromptIndex = 0;
 
   int get nextRoundId => _roundId + 1;
 
   void reset() {
     _roundId = 0;
+    _orderedPromptIndex = 0;
     _queues.clear();
     _beginnerQueue.clear();
   }
@@ -43,22 +48,26 @@ class AssociationRoundGenerator {
       secondsLeft: secondsLeft,
       wordsSolved: wordsSolved,
     );
-    final AssociationPrompt prompt =
-        roundId <= AssociationDifficultyService.beginnerRoundCount
+    final AssociationPrompt prompt = _preservePromptOrder
+        ? _nextOrderedPrompt()
+        : roundId <= AssociationDifficultyService.beginnerRoundCount
         ? _nextBeginnerPrompt()
         : _nextPrompt(difficulty);
     final List<AssociationOption> options = <AssociationOption>[
       AssociationOption(
-        id: '${roundId}_correct',
+        id: prompt.correctChoiceId ?? '${roundId}_correct',
         word: prompt.correctAnswer,
         isCorrect: true,
       ),
       AssociationOption(
-        id: '${roundId}_wrong',
+        id: prompt.wrongChoiceId ?? '${roundId}_wrong',
         word: prompt.wrongAnswer,
         isCorrect: false,
       ),
-    ]..shuffle(_random);
+    ];
+    if (!_preservePromptOrder) {
+      options.shuffle(_random);
+    }
 
     return AssociationRound(
       roundId: roundId,
@@ -92,6 +101,13 @@ class AssociationRoundGenerator {
         );
     }
     return _beginnerQueue.removeAt(0);
+  }
+
+  AssociationPrompt _nextOrderedPrompt() {
+    final AssociationPrompt prompt =
+        _allPrompts[_orderedPromptIndex % _allPrompts.length];
+    _orderedPromptIndex += 1;
+    return prompt;
   }
 
   AssociationPrompt _nextPrompt(AssociationDifficulty difficulty) {

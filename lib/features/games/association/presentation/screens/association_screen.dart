@@ -6,11 +6,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
+import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/games/association/application/cubit/association_cubit.dart';
 import 'package:lexrush/features/games/association/application/cubit/association_state.dart';
+import 'package:lexrush/features/games/association/application/services/association_backend_bootstrap.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_option.dart';
 import 'package:lexrush/features/games/association/domain/entities/association_outcome.dart';
+import 'package:lexrush/features/games/association/domain/services/association_round_generator.dart';
 import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/application/services/pending_result_queue.dart';
@@ -28,25 +31,76 @@ class AssociationScreen extends StatefulWidget {
 }
 
 class _AssociationScreenState extends State<AssociationScreen> {
-  BackendResultSyncService? _syncService;
-  bool _navigatedToResults = false;
+  Future<AssociationBootstrapResult>? _bootstrapFuture;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_syncService != null) return;
-    _syncService = BackendResultSyncService(
+    if (_bootstrapFuture != null) return;
+    _bootstrapFuture = AssociationBackendBootstrap(
+      repository: context.read<LexRushBackendRepository>(),
+      pendingQueue: context.read<PendingResultQueue>(),
+      userId: context.read<AuthCubit>().state.user?.userId,
+    ).load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<AssociationBootstrapResult>(
+      future: _bootstrapFuture,
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<AssociationBootstrapResult> snapshot,
+          ) {
+            if (!snapshot.hasData) {
+              return const PortraitShell(
+                child: Center(child: Text('Preparing Association…')),
+              );
+            }
+            return _AssociationGameplay(bootstrap: snapshot.requireData);
+          },
+    );
+  }
+}
+
+class _AssociationGameplay extends StatefulWidget {
+  const _AssociationGameplay({required this.bootstrap});
+
+  final AssociationBootstrapResult bootstrap;
+
+  @override
+  State<_AssociationGameplay> createState() => _AssociationGameplayState();
+}
+
+class _AssociationGameplayState extends State<_AssociationGameplay> {
+  bool _navigatedToResults = false;
+  BackendResultSyncService? _resultSyncService;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!widget.bootstrap.createResultSyncOnFinish ||
+        _resultSyncService != null) {
+      return;
+    }
+    _resultSyncService = BackendResultSyncService(
       gameId: BackendGameIds.association,
       repository: context.read<LexRushBackendRepository>(),
       pendingQueue: context.read<PendingResultQueue>(),
       userId: context.read<AuthCubit>().state.user?.userId,
-    )..startSession();
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<AssociationCubit>(
-      create: (_) => AssociationCubit()..start(),
+      create: (_) => AssociationCubit(
+        roundGenerator: AssociationRoundGenerator(
+          prompts: widget.bootstrap.prompts,
+          preservePromptOrder: widget.bootstrap.usedBackendPrompts,
+        ),
+      )..start(),
       child: BlocConsumer<AssociationCubit, AssociationState>(
         listener: (BuildContext context, AssociationState state) {
           if (!_navigatedToResults &&
@@ -54,10 +108,14 @@ class _AssociationScreenState extends State<AssociationScreen> {
               state.result != null) {
             debugPrint('[AssociationScreen] session ended -> go results');
             _navigatedToResults = true;
-            final BackendResultSyncHandle? syncHandle = _syncService
-                ?.submitSummaryWithHandle(
+            final BackendResultSyncHandle? syncHandle =
+                widget.bootstrap.syncService?.submitSummaryWithHandle(
                   BackendResultMappers.association(state.result!),
-                );
+                ) ??
+                _resultSyncService?.submitSummaryWithHandle(
+                  BackendResultMappers.association(state.result!),
+                ) ??
+                _fallbackSyncHandle(widget.bootstrap.fallbackSyncStatus);
             context.go(
               AppRoutes.results,
               extra: syncHandle == null
@@ -143,6 +201,14 @@ class _AssociationScreenState extends State<AssociationScreen> {
         },
       ),
     );
+  }
+
+  BackendResultSyncHandle? _fallbackSyncHandle(BackendSyncStatus? status) {
+    if (status == null) return null;
+    final BackendResultSyncHandle handle = BackendResultSyncHandle();
+    handle.setStatus(status);
+    handle.complete();
+    return handle;
   }
 }
 
