@@ -2,6 +2,7 @@ import 'package:lexrush/core/network/api_client.dart';
 import 'package:lexrush/core/network/request_auth_policy.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
+import 'package:lexrush/shared/data/backend/today_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
@@ -55,6 +56,14 @@ class LexRushBackendRepository {
       authPolicy: RequestAuthPolicy.requiredAuth,
     );
     return UserAchievementsResponse.fromJson(json);
+  }
+
+  Future<TodayResponseDto> getToday() async {
+    final Map<String, dynamic> json = await _apiClient.get(
+      '/me/today',
+      authPolicy: RequestAuthPolicy.requiredAuth,
+    );
+    return TodayResponseDto.fromJson(json);
   }
 
   Future<bool> hasAccessToken() => _apiClient.hasAccessToken();

@@ -20,6 +20,7 @@ import 'package:lexrush/shared/application/services/backend_result_mappers.dart'
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
+import 'package:lexrush/shared/data/backend/today_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
@@ -156,6 +157,56 @@ void main() {
       expect(response.achievements.last.progress, 2);
       expect(response.achievements.last.target, 5);
     });
+
+    test('maps today response preserving recommended game order', () {
+      final TodayResponseDto response = TodayResponseDto.fromJson(
+        <String, dynamic>{
+          'userId': 'user-1',
+          'trainingDate': '2026-06-05',
+          'status': 'in_progress',
+          'title': 'Keep Going!',
+          'message': "1 of 2 games done — you're on a roll!",
+          'recommendedGames': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'gameId': 'commas',
+              'title': 'Commas',
+              'skillFocus': <String>['grammar', 'punctuation', 'precision'],
+              'estimatedMinutes': 2,
+              'completedToday': true,
+            },
+            <String, dynamic>{
+              'gameId': 'antonym_rush',
+              'title': 'Antonym Rush',
+              'skillFocus': <String>[
+                'vocabulary',
+                'processing_speed',
+                'attention',
+              ],
+              'estimatedMinutes': 2,
+              'completedToday': false,
+            },
+          ],
+          'completedGameIds': <String>['commas'],
+          'totalRecommendedGames': 2,
+          'completedRecommendedGames': 1,
+          'dailyXpEarned': 53,
+          'currentStreak': 2,
+        },
+      );
+
+      expect(response.userId, 'user-1');
+      expect(response.status, 'in_progress');
+      expect(response.isCompleted, isFalse);
+      expect(response.completedGameIds, <String>['commas']);
+      expect(
+        response.recommendedGames.map((RecommendedGameDto game) => game.gameId),
+        <String>['commas', 'antonym_rush'],
+      );
+      expect(response.recommendedGames.first.completedToday, isTrue);
+      expect(response.recommendedGames.last.skillFocus, contains('attention'));
+      expect(response.dailyXpEarned, 53);
+      expect(response.currentStreak, 2);
+    });
   });
 
   group('ApiClient and repository', () {
@@ -251,6 +302,37 @@ void main() {
               200,
             );
           }
+          if (request.url.path == '/me/today') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'userId': 'dev-user-001',
+                'trainingDate': '2026-06-05',
+                'status': 'in_progress',
+                'title': 'Keep Going!',
+                'message': "1 of 2 games done — you're on a roll!",
+                'recommendedGames': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'gameId': 'commas',
+                    'title': 'Commas',
+                    'skillFocus': <String>[
+                      'grammar',
+                      'punctuation',
+                      'precision',
+                    ],
+                    'estimatedMinutes': 2,
+                    'completedToday': true,
+                  },
+                ],
+                'completedGameIds': <String>['commas'],
+                'totalRecommendedGames': 2,
+                'completedRecommendedGames': 1,
+                'dailyXpEarned': 53,
+                'currentStreak': 2,
+              }),
+              200,
+              headers: _jsonHeaders,
+            );
+          }
           return http.Response('{}', 404);
         }),
       );
@@ -278,6 +360,7 @@ void main() {
       await repository.getMySkills();
       final UserAchievementsResponse achievements = await repository
           .getMyAchievements();
+      final TodayResponseDto today = await repository.getToday();
 
       expect(
         requests.every(
@@ -290,6 +373,11 @@ void main() {
       expect(
         requests.map((http.Request request) => request.url.path),
         contains('/me/achievements'),
+      );
+      expect(today.recommendedGames.single.gameId, 'commas');
+      expect(
+        requests.map((http.Request request) => request.url.path),
+        contains('/me/today'),
       );
     });
 
@@ -460,6 +548,10 @@ void main() {
     });
   });
 }
+
+const Map<String, String> _jsonHeaders = <String, String>{
+  'content-type': 'application/json; charset=utf-8',
+};
 
 class _FakeTokenStore implements TokenStore {
   _FakeTokenStore([this.tokens]);
