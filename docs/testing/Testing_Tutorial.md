@@ -269,6 +269,31 @@ After uninstall, run `flutter run` again to install the debug build. Replace the
 
 ---
 
+## Testing offline support and local storage (Android)
+
+Sometimes you need to verify that the app behaves correctly when the network is down and that it queues data locally (like LexRush's offline result retry queue).
+
+1. **Simulate backend failure:**
+   Simply stop your local backend process (e.g., `Ctrl+C` on `npm run start:dev` or disabling Wi-Fi on the emulator). Play a game and let it attempt to sync.
+   
+2. **Inspect SharedPreferences / Datastore:**
+   On Android, you can inspect the raw files stored by `SharedPreferencesAsync` (or regular `SharedPreferences`) without rooting the emulator if you use the `run-as` command.
+   
+   ```bash
+   adb -s emulator-5554 shell run-as your.package.id cat /data/user/0/your.package.id/files/datastore/FlutterSharedPreferences.preferences_pb
+   ```
+   *(For LexRush, replace `your.package.id` with `com.example.lexrush`)*
+   
+   You can pipe this to `grep` to check if your offline queue key exists:
+   ```bash
+   adb -s emulator-5554 shell run-as com.example.lexrush cat /data/user/0/com.example.lexrush/files/datastore/FlutterSharedPreferences.preferences_pb | grep -a "lexrush.pending_results.v1"
+   ```
+
+3. **Verify the drain:**
+   Restart your backend, trigger the app's sync logic (e.g., hot restart `r` or navigate to a screen that triggers the sync), and run the `cat` command again to confirm the queue has been emptied.
+
+---
+
 ## iOS Simulator (Flutter, macOS)
 
 You need **Xcode** and a **Simulator** runtime. Flutter will list simulators as devices.
