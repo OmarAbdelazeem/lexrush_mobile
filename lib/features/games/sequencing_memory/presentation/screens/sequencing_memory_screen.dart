@@ -4,12 +4,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lexrush/app/router/app_router.dart';
 import 'package:lexrush/app/theme/app_colors.dart';
+import 'package:lexrush/core/widgets/portrait_shell.dart';
 import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/games/sequencing_memory/application/cubit/sequencing_memory_cubit.dart';
 import 'package:lexrush/features/games/sequencing_memory/application/cubit/sequencing_memory_state.dart';
+import 'package:lexrush/features/games/sequencing_memory/application/services/sequencing_memory_backend_bootstrap.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_round_result.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/entities/sequencing_stage.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/services/sequencing_audio_service.dart';
+import 'package:lexrush/features/games/sequencing_memory/domain/services/sequencing_round_generator.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_listen_panel.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_reorder_area.dart';
 import 'package:lexrush/features/games/sequencing_memory/presentation/widgets/sequencing_route_background.dart';
@@ -31,27 +34,77 @@ class SequencingMemoryScreen extends StatefulWidget {
 }
 
 class _SequencingMemoryScreenState extends State<SequencingMemoryScreen> {
-  BackendResultSyncService? _syncService;
-  bool _navigatedToResults = false;
+  Future<SequencingMemoryBootstrapResult>? _bootstrapFuture;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_syncService != null) return;
-    _syncService = BackendResultSyncService(
+    if (_bootstrapFuture != null) return;
+    _bootstrapFuture = SequencingMemoryBackendBootstrap(
+      repository: context.read<LexRushBackendRepository>(),
+      pendingQueue: context.read<PendingResultQueue>(),
+      userId: context.read<AuthCubit>().state.user?.userId,
+    ).load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<SequencingMemoryBootstrapResult>(
+      future: _bootstrapFuture,
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<SequencingMemoryBootstrapResult> snapshot,
+      ) {
+        if (!snapshot.hasData) {
+          return const PortraitShell(
+            child: Center(child: Text('Preparing Sequencing Memory…')),
+          );
+        }
+        return _SequencingMemoryGameplay(bootstrap: snapshot.requireData);
+      },
+    );
+  }
+}
+
+class _SequencingMemoryGameplay extends StatefulWidget {
+  const _SequencingMemoryGameplay({required this.bootstrap});
+
+  final SequencingMemoryBootstrapResult bootstrap;
+
+  @override
+  State<_SequencingMemoryGameplay> createState() =>
+      _SequencingMemoryGameplayState();
+}
+
+class _SequencingMemoryGameplayState extends State<_SequencingMemoryGameplay> {
+  bool _navigatedToResults = false;
+  BackendResultSyncService? _resultSyncService;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!widget.bootstrap.createResultSyncOnFinish ||
+        _resultSyncService != null) {
+      return;
+    }
+    _resultSyncService = BackendResultSyncService(
       gameId: BackendGameIds.sequencingMemory,
       repository: context.read<LexRushBackendRepository>(),
       pendingQueue: context.read<PendingResultQueue>(),
       userId: context.read<AuthCubit>().state.user?.userId,
-    )..startSession();
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SequencingMemoryCubit>(
-      create: (_) =>
-          SequencingMemoryCubit(audioService: DeviceTtsSequencingAudioService())
-            ..start(),
+      create: (_) => SequencingMemoryCubit(
+        audioService: DeviceTtsSequencingAudioService(),
+        roundGenerator: SequencingRoundGenerator(
+          prompts: widget.bootstrap.prompts,
+          preservePromptOrder: widget.bootstrap.usedBackendPrompts,
+        ),
+      )..start(),
       child: BlocConsumer<SequencingMemoryCubit, SequencingMemoryState>(
         listener: (BuildContext context, SequencingMemoryState state) {
           if (!_navigatedToResults &&
@@ -59,10 +112,14 @@ class _SequencingMemoryScreenState extends State<SequencingMemoryScreen> {
               state.result != null) {
             debugPrint('[SequencingMemoryScreen] session ended -> go results');
             _navigatedToResults = true;
-            final BackendResultSyncHandle? syncHandle = _syncService
-                ?.submitSummaryWithHandle(
+            final BackendResultSyncHandle? syncHandle =
+                widget.bootstrap.syncService?.submitSummaryWithHandle(
                   BackendResultMappers.sequencingMemory(state.result!),
-                );
+                ) ??
+                _resultSyncService?.submitSummaryWithHandle(
+                  BackendResultMappers.sequencingMemory(state.result!),
+                ) ??
+                _fallbackSyncHandle(widget.bootstrap.fallbackSyncStatus);
             context.go(
               AppRoutes.results,
               extra: syncHandle == null
@@ -127,6 +184,14 @@ class _SequencingMemoryScreenState extends State<SequencingMemoryScreen> {
         },
       ),
     );
+  }
+
+  BackendResultSyncHandle? _fallbackSyncHandle(BackendSyncStatus? status) {
+    if (status == null) return null;
+    final BackendResultSyncHandle handle = BackendResultSyncHandle();
+    handle.setStatus(status);
+    handle.complete();
+    return handle;
   }
 }
 

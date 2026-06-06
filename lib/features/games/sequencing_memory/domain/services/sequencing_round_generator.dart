@@ -10,34 +10,47 @@ class SequencingRoundGenerator {
     required List<SequencingPrompt> prompts,
     SequencingDifficultyService difficultyService =
         const SequencingDifficultyService(),
+    bool preservePromptOrder = false,
   }) : _prompts = prompts,
-       _difficultyService = difficultyService;
+       _difficultyService = difficultyService,
+       _preservePromptOrder = preservePromptOrder;
 
   final List<SequencingPrompt> _prompts;
   final SequencingDifficultyService _difficultyService;
+  final bool _preservePromptOrder;
   int _nextRoundId = 1;
+  int _orderedPromptIndex = 0;
 
   void reset() {
     _nextRoundId = 1;
+    _orderedPromptIndex = 0;
   }
 
   SequencingRound generate() {
     final int roundId = _nextRoundId++;
-    final SequencingDifficulty difficulty = _difficultyService.difficultyFor(
-      nextRoundId: roundId,
-    );
-    final List<SequencingPrompt> candidates = _prompts
-        .where((SequencingPrompt prompt) {
-          if (roundId <= 3) {
-            return prompt.beginnerSafe;
-          }
-          return prompt.difficulty == difficulty;
-        })
-        .toList(growable: false);
-    final List<SequencingPrompt> pool = candidates.isEmpty
-        ? _prompts
-        : candidates;
-    final SequencingPrompt prompt = pool[(roundId - 1) % pool.length];
+    final SequencingPrompt prompt;
+
+    if (_preservePromptOrder) {
+      prompt = _prompts[_orderedPromptIndex % _prompts.length];
+      _orderedPromptIndex++;
+    } else {
+      final SequencingDifficulty difficulty = _difficultyService.difficultyFor(
+        nextRoundId: roundId,
+      );
+      final List<SequencingPrompt> candidates = _prompts
+          .where((SequencingPrompt p) {
+            if (roundId <= 3) {
+              return p.beginnerSafe;
+            }
+            return p.difficulty == difficulty;
+          })
+          .toList(growable: false);
+      final List<SequencingPrompt> pool = candidates.isEmpty
+          ? _prompts
+          : candidates;
+      prompt = pool[(roundId - 1) % pool.length];
+    }
+
     final int split = math.max(1, prompt.items.length ~/ 2);
 
     return SequencingRound(
