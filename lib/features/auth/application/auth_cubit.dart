@@ -57,7 +57,9 @@ class AuthCubit extends Cubit<AuthState> {
       emit(AuthState.authenticated(user: user));
       _drainPendingResults(user.userId);
     } on ApiException catch (error) {
-      if (error.isInvalidRefreshToken || error.isUnauthorized) {
+      if (error.isInvalidRefreshToken ||
+          error.isRefreshTokenReuseDetected ||
+          error.isUnauthorized) {
         await _repository.logout();
         emit(const AuthState.unauthenticated());
         return;

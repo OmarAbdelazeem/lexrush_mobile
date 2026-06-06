@@ -606,6 +606,156 @@ void main() {
       expect(rateLimited.isInvalidRefreshToken, isFalse);
     });
   });
+
+  group('ApiException.isRefreshTokenReuseDetected', () {
+    test('true for REFRESH_TOKEN_REUSE_DETECTED code', () {
+      const ApiException e = ApiException(
+        statusCode: 401,
+        code: 'REFRESH_TOKEN_REUSE_DETECTED',
+        message: 'Refresh token reuse detected. Please sign in again.',
+      );
+      expect(e.isRefreshTokenReuseDetected, isTrue);
+    });
+
+    test('false for INVALID_REFRESH_TOKEN', () {
+      const ApiException e = ApiException(
+        statusCode: 401,
+        code: 'INVALID_REFRESH_TOKEN',
+        message: 'Token invalid.',
+      );
+      expect(e.isRefreshTokenReuseDetected, isFalse);
+    });
+
+    test('false for RATE_LIMITED — does not enter transient/offline path', () {
+      const ApiException e = ApiException(
+        statusCode: 429,
+        code: 'RATE_LIMITED',
+        message: 'Too many requests.',
+      );
+      expect(e.isRefreshTokenReuseDetected, isFalse);
+    });
+
+    test('false for UNAUTHORIZED', () {
+      const ApiException e = ApiException(
+        statusCode: 401,
+        code: 'UNAUTHORIZED',
+        message: 'Not authorized.',
+      );
+      expect(e.isRefreshTokenReuseDetected, isFalse);
+    });
+
+    test('is disjoint from isRateLimited and isInvalidRefreshToken', () {
+      const ApiException e = ApiException(
+        statusCode: 401,
+        code: 'REFRESH_TOKEN_REUSE_DETECTED',
+        message: 'Refresh token reuse detected.',
+      );
+      expect(e.isRefreshTokenReuseDetected, isTrue);
+      expect(e.isRateLimited, isFalse);
+      expect(e.isInvalidRefreshToken, isFalse);
+    });
+  });
+
+  group('ApiClient refresh reuse detection', () {
+    test('clears tokens and fires invalidation callback on reuse detection',
+        () async {
+      final _FakeTokenStore tokenStore = _FakeTokenStore(
+        const AuthTokens(accessToken: 'old-access', refreshToken: 'old-refresh'),
+      );
+      bool invalidationFired = false;
+      final ApiClient client = ApiClient(
+        config: const ApiConfig(baseUrl: 'http://example.test'),
+        tokenStore: tokenStore,
+        authHeadersProvider: ApiAuthHeadersProvider(tokenStore: tokenStore),
+        onAuthInvalidated: () => invalidationFired = true,
+        httpClient: MockClient((http.Request request) async {
+          if (request.url.path == '/auth/refresh') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'error': <String, dynamic>{
+                  'code': 'REFRESH_TOKEN_REUSE_DETECTED',
+                  'message':
+                      'Refresh token reuse detected. Please sign in again.',
+                },
+              }),
+              401,
+              headers: _jsonHeaders,
+            );
+          }
+          // Protected endpoint returns 401 UNAUTHORIZED to trigger refresh.
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'error': <String, dynamic>{
+                'code': 'UNAUTHORIZED',
+                'message': 'Unauthorized.',
+              },
+            }),
+            401,
+            headers: _jsonHeaders,
+          );
+        }),
+      );
+
+      await expectLater(
+        () => client.get('/me', authPolicy: RequestAuthPolicy.requiredAuth),
+        throwsA(
+          isA<ApiException>().having(
+            (ApiException e) => e.code,
+            'code',
+            'REFRESH_TOKEN_REUSE_DETECTED',
+          ),
+        ),
+      );
+
+      expect(tokenStore.tokens, isNull);
+      expect(invalidationFired, isTrue);
+    });
+
+    test('does not retry original protected request on reuse detection',
+        () async {
+      final _FakeTokenStore tokenStore = _FakeTokenStore(
+        const AuthTokens(accessToken: 'old-access', refreshToken: 'old-refresh'),
+      );
+      int protectedCallCount = 0;
+      final ApiClient client = ApiClient(
+        config: const ApiConfig(baseUrl: 'http://example.test'),
+        tokenStore: tokenStore,
+        authHeadersProvider: ApiAuthHeadersProvider(tokenStore: tokenStore),
+        httpClient: MockClient((http.Request request) async {
+          if (request.url.path == '/auth/refresh') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'error': <String, dynamic>{
+                  'code': 'REFRESH_TOKEN_REUSE_DETECTED',
+                  'message': 'Refresh token reuse detected.',
+                },
+              }),
+              401,
+              headers: _jsonHeaders,
+            );
+          }
+          protectedCallCount++;
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'error': <String, dynamic>{
+                'code': 'UNAUTHORIZED',
+                'message': 'Unauthorized.',
+              },
+            }),
+            401,
+            headers: _jsonHeaders,
+          );
+        }),
+      );
+
+      await expectLater(
+        () => client.get('/me', authPolicy: RequestAuthPolicy.requiredAuth),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(protectedCallCount, 1);
+    });
+  });
 }
 
 const Map<String, String> _jsonHeaders = <String, String>{

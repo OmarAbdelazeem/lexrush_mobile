@@ -14,6 +14,7 @@ class ApiException implements Exception {
   bool get isSessionAlreadyCompleted => code == 'SESSION_ALREADY_COMPLETED';
   bool get isUnauthorized => statusCode == 401 && code == 'UNAUTHORIZED';
   bool get isInvalidRefreshToken => code == 'INVALID_REFRESH_TOKEN';
+  bool get isRefreshTokenReuseDetected => code == 'REFRESH_TOKEN_REUSE_DETECTED';
   bool get isAuthRequired => code == 'AUTH_REQUIRED';
   bool get isRateLimited => statusCode == 429 || code == 'RATE_LIMITED';
 

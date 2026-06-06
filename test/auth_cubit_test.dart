@@ -299,6 +299,92 @@ void main() {
         await invalidationController.close();
       },
     );
+
+    test(
+      'initialize with REFRESH_TOKEN_REUSE_DETECTED moves to unauthenticated',
+      () async {
+        final _FakeAuthRepository repository = _FakeAuthRepository(
+          hasStoredTokens: true,
+          meError: const ApiException(
+            statusCode: 401,
+            code: 'REFRESH_TOKEN_REUSE_DETECTED',
+            message: 'Refresh token reuse detected. Please sign in again.',
+          ),
+        );
+        final AuthInvalidationController invalidationController =
+            AuthInvalidationController();
+        final AuthCubit cubit = AuthCubit(
+          repository: repository,
+          invalidationController: invalidationController,
+        );
+
+        await cubit.initialize();
+
+        expect(cubit.state.status, AuthStatus.unauthenticated);
+        expect(repository.logoutCalls, 1);
+
+        await cubit.close();
+        await invalidationController.close();
+      },
+    );
+
+    test(
+      'REFRESH_TOKEN_REUSE_DETECTED does not trigger retry — me() called once only',
+      () async {
+        int meCallCount = 0;
+        final AuthInvalidationController invalidationController =
+            AuthInvalidationController();
+        final AuthCubit cubit = AuthCubit(
+          repository: _CountingAuthRepository(
+            meCallCount: () => meCallCount++,
+            meError: const ApiException(
+              statusCode: 401,
+              code: 'REFRESH_TOKEN_REUSE_DETECTED',
+              message: 'Refresh token reuse detected. Please sign in again.',
+            ),
+            hasStoredTokens: true,
+          ),
+          invalidationController: invalidationController,
+        );
+
+        await cubit.initialize();
+
+        expect(meCallCount, 1);
+        expect(cubit.state.status, AuthStatus.unauthenticated);
+
+        await cubit.close();
+        await invalidationController.close();
+      },
+    );
+
+    test(
+      'REFRESH_TOKEN_REUSE_DETECTED is distinct from RATE_LIMITED — does not preserve authenticated state',
+      () async {
+        final _FakeAuthRepository repository = _FakeAuthRepository(
+          hasStoredTokens: true,
+          meError: const ApiException(
+            statusCode: 401,
+            code: 'REFRESH_TOKEN_REUSE_DETECTED',
+            message: 'Refresh token reuse detected. Please sign in again.',
+          ),
+        );
+        final AuthInvalidationController invalidationController =
+            AuthInvalidationController();
+        final AuthCubit cubit = AuthCubit(
+          repository: repository,
+          invalidationController: invalidationController,
+        );
+
+        await cubit.initialize();
+
+        // Must NOT preserve authenticated state (unlike RATE_LIMITED).
+        expect(cubit.state.status, isNot(AuthStatus.authenticated));
+        expect(cubit.state.status, AuthStatus.unauthenticated);
+
+        await cubit.close();
+        await invalidationController.close();
+      },
+    );
   });
 }
 

@@ -109,12 +109,12 @@ class ApiClient {
     try {
       await _refreshTokensSingleFlight();
     } on ApiException catch (error) {
-      if (error.isInvalidRefreshToken) {
+      if (error.isInvalidRefreshToken || error.isRefreshTokenReuseDetected) {
         await _tokenStore.clearTokens();
         _onAuthInvalidated?.call();
       }
       // RATE_LIMITED and other transient errors are re-thrown without clearing
-      // tokens — they are not equivalent to an invalid refresh token.
+      // tokens — they are not equivalent to an invalid or reused refresh token.
       rethrow;
     }
 
