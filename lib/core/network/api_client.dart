@@ -113,6 +113,8 @@ class ApiClient {
         await _tokenStore.clearTokens();
         _onAuthInvalidated?.call();
       }
+      // RATE_LIMITED and other transient errors are re-thrown without clearing
+      // tokens — they are not equivalent to an invalid refresh token.
       rethrow;
     }
 

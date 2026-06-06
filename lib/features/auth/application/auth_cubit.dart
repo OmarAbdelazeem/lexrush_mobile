@@ -62,6 +62,8 @@ class AuthCubit extends Cubit<AuthState> {
         emit(const AuthState.unauthenticated());
         return;
       }
+      // RATE_LIMITED and other transient errors: preserve tokens and treat as
+      // a temporary network condition — same as an offline startup.
       emit(const AuthState.authenticated());
     } on Object {
       // Keep stored tokens when startup validation cannot reach the backend.
@@ -81,6 +83,14 @@ class AuthCubit extends Cubit<AuthState> {
         _analytics
             ?.trackAuthLoginSuccess(userId: response.user.userId)
             .catchError((_) {}),
+      );
+    } on ApiException catch (error) {
+      emit(
+        AuthState.error(
+          error.isRateLimited
+              ? 'Too many attempts. Please wait a moment and try again.'
+              : 'Sign in failed. Check your details.',
+        ),
       );
     } on Object {
       emit(const AuthState.error('Sign in failed. Check your details.'));
@@ -107,6 +117,14 @@ class AuthCubit extends Cubit<AuthState> {
         _analytics
             ?.trackAuthRegisterSuccess(userId: response.user.userId)
             .catchError((_) {}),
+      );
+    } on ApiException catch (error) {
+      emit(
+        AuthState.error(
+          error.isRateLimited
+              ? 'Too many attempts. Please wait a moment and try again.'
+              : 'Could not create that account.',
+        ),
       );
     } on Object {
       emit(const AuthState.error('Could not create that account.'));

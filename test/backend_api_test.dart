@@ -547,6 +547,65 @@ void main() {
       });
     });
   });
+
+  group('ApiException.isRateLimited', () {
+    test('true for RATE_LIMITED code with 429 status', () {
+      const ApiException e = ApiException(
+        statusCode: 429,
+        code: 'RATE_LIMITED',
+        message: 'Too many requests.',
+      );
+      expect(e.isRateLimited, isTrue);
+    });
+
+    test('true for 429 status even without code', () {
+      const ApiException e = ApiException(
+        statusCode: 429,
+        message: 'Too many requests.',
+      );
+      expect(e.isRateLimited, isTrue);
+    });
+
+    test('true for RATE_LIMITED code even without 429 status', () {
+      const ApiException e = ApiException(
+        statusCode: 200,
+        code: 'RATE_LIMITED',
+        message: 'Too many requests.',
+      );
+      expect(e.isRateLimited, isTrue);
+    });
+
+    test('false for non-rate-limit errors', () {
+      const ApiException unauthorized = ApiException(
+        statusCode: 401,
+        code: 'UNAUTHORIZED',
+        message: 'Not authorized.',
+      );
+      const ApiException invalidRefresh = ApiException(
+        statusCode: 401,
+        code: 'INVALID_REFRESH_TOKEN',
+        message: 'Token invalid.',
+      );
+      const ApiException sessionCompleted = ApiException(
+        statusCode: 409,
+        code: 'SESSION_ALREADY_COMPLETED',
+        message: 'Already done.',
+      );
+      expect(unauthorized.isRateLimited, isFalse);
+      expect(invalidRefresh.isRateLimited, isFalse);
+      expect(sessionCompleted.isRateLimited, isFalse);
+    });
+
+    test('is disjoint from isInvalidRefreshToken', () {
+      const ApiException rateLimited = ApiException(
+        statusCode: 429,
+        code: 'RATE_LIMITED',
+        message: 'Too many requests.',
+      );
+      expect(rateLimited.isRateLimited, isTrue);
+      expect(rateLimited.isInvalidRefreshToken, isFalse);
+    });
+  });
 }
 
 const Map<String, String> _jsonHeaders = <String, String>{

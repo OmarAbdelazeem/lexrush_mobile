@@ -186,6 +186,119 @@ void main() {
       await cubit.close();
       await invalidationController.close();
     });
+
+    test('login RATE_LIMITED shows friendly rate-limit message', () async {
+      final _FakeAuthRepository repository = _FakeAuthRepository(
+        loginError: const ApiException(
+          statusCode: 429,
+          code: 'RATE_LIMITED',
+          message: 'Too many requests. Please try again later.',
+        ),
+      );
+      final AuthInvalidationController invalidationController =
+          AuthInvalidationController();
+      final AuthCubit cubit = AuthCubit(
+        repository: repository,
+        invalidationController: invalidationController,
+      );
+
+      await cubit.login(email: 'test@example.com', password: 'password123');
+
+      expect(cubit.state.status, AuthStatus.error);
+      expect(
+        cubit.state.errorMessage,
+        'Too many attempts. Please wait a moment and try again.',
+      );
+      expect(repository.logoutCalls, 0);
+
+      await cubit.close();
+      await invalidationController.close();
+    });
+
+    test('register RATE_LIMITED shows friendly rate-limit message', () async {
+      final _FakeAuthRepository repository = _FakeAuthRepository(
+        registerError: const ApiException(
+          statusCode: 429,
+          code: 'RATE_LIMITED',
+          message: 'Too many requests. Please try again later.',
+        ),
+      );
+      final AuthInvalidationController invalidationController =
+          AuthInvalidationController();
+      final AuthCubit cubit = AuthCubit(
+        repository: repository,
+        invalidationController: invalidationController,
+      );
+
+      await cubit.register(email: 'test@example.com', password: 'password123');
+
+      expect(cubit.state.status, AuthStatus.error);
+      expect(
+        cubit.state.errorMessage,
+        'Too many attempts. Please wait a moment and try again.',
+      );
+      expect(repository.logoutCalls, 0);
+
+      await cubit.close();
+      await invalidationController.close();
+    });
+
+    test(
+      'RATE_LIMITED propagated from refresh preserves tokens and does not logout',
+      () async {
+        final _FakeAuthRepository repository = _FakeAuthRepository(
+          hasStoredTokens: true,
+          meError: const ApiException(
+            statusCode: 429,
+            code: 'RATE_LIMITED',
+            message: 'Too many requests. Please try again later.',
+          ),
+        );
+        final AuthInvalidationController invalidationController =
+            AuthInvalidationController();
+        final AuthCubit cubit = AuthCubit(
+          repository: repository,
+          invalidationController: invalidationController,
+        );
+
+        await cubit.initialize();
+
+        expect(cubit.state.status, AuthStatus.authenticated);
+        expect(repository.logoutCalls, 0);
+
+        await cubit.close();
+        await invalidationController.close();
+      },
+    );
+
+    test(
+      'RATE_LIMITED from refresh does not trigger retry — me() called once only',
+      () async {
+        int meCallCount = 0;
+        final AuthInvalidationController invalidationController =
+            AuthInvalidationController();
+        final AuthCubit cubit = AuthCubit(
+          repository: _CountingAuthRepository(
+            meCallCount: () => meCallCount++,
+            meError: const ApiException(
+              statusCode: 429,
+              code: 'RATE_LIMITED',
+              message: 'Too many requests. Please try again later.',
+            ),
+            hasStoredTokens: true,
+          ),
+          invalidationController: invalidationController,
+        );
+
+        await cubit.initialize();
+
+        expect(meCallCount, 1);
+        expect(cubit.state.status, AuthStatus.authenticated);
+
+        await cubit.close();
+        await invalidationController.close();
+      },
+    );
   });
 }
 
@@ -207,10 +320,17 @@ class _FakeResultRetryDrainer implements ResultRetryDrainer {
 }
 
 class _FakeAuthRepository implements AuthRepository {
-  _FakeAuthRepository({this.hasStoredTokens = false, this.meError});
+  _FakeAuthRepository({
+    this.hasStoredTokens = false,
+    this.meError,
+    this.loginError,
+    this.registerError,
+  });
 
   final bool hasStoredTokens;
   final Object? meError;
+  final Object? loginError;
+  final Object? registerError;
   int logoutCalls = 0;
 
   @override
@@ -223,6 +343,8 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResponse> login(LoginRequest request) async {
+    final Object? error = loginError;
+    if (error != null) throw error;
     return AuthResponse(
       tokens: const AuthTokens(
         accessToken: 'access-1',
@@ -254,6 +376,8 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResponse> register(RegisterRequest request) async {
+    final Object? error = registerError;
+    if (error != null) throw error;
     return AuthResponse(
       tokens: const AuthTokens(
         accessToken: 'access-1',
@@ -266,4 +390,47 @@ class _FakeAuthRepository implements AuthRepository {
       ),
     );
   }
+}
+
+// Wraps _FakeAuthRepository and counts me() calls to verify no retry loop.
+class _CountingAuthRepository implements AuthRepository {
+  _CountingAuthRepository({
+    required this.hasStoredTokens,
+    required this.meError,
+    required this.meCallCount,
+  });
+
+  final bool hasStoredTokens;
+  final Object? meError;
+  final void Function() meCallCount;
+
+  @override
+  Future<bool> hasTokens() async => hasStoredTokens;
+
+  @override
+  Future<AuthUser> me() async {
+    meCallCount();
+    final Object? error = meError;
+    if (error != null) throw error;
+    return const AuthUser(
+      userId: 'user-1',
+      email: 'test@example.com',
+      displayName: 'Test',
+    );
+  }
+
+  @override
+  Future<AuthResponse> login(LoginRequest request) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<AuthResponse> register(RegisterRequest request) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<AuthTokens> refresh(String refreshToken) async =>
+      throw UnimplementedError();
 }

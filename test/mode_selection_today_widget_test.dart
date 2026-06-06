@@ -17,7 +17,9 @@ import 'package:lexrush/core/network/api_config.dart';
 import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/auth/data/auth_repository.dart';
 import 'package:lexrush/features/mode_selection/presentation/screens/mode_selection_screen.dart';
+import 'package:lexrush/shared/application/services/noop_integrations.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 
 void main() {
   testWidgets('logged-out Mode Selection does not fetch today', (
@@ -85,7 +87,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Today’s training is unavailable right now.'),
+      find.text("Today's training is unavailable right now."),
       findsOneWidget,
     );
     expect(find.text('Antonym Rush'), findsOneWidget);
@@ -235,6 +237,9 @@ Future<GoRouter> _pumpModeSelection(
   await tester.pumpWidget(
     MultiRepositoryProvider(
       providers: <RepositoryProvider<dynamic>>[
+        RepositoryProvider<AnalyticsPort>(
+          create: (_) => NoopAnalyticsPort(),
+        ),
         RepositoryProvider<LexRushBackendRepository>(
           create: (_) => LexRushBackendRepository(apiClient: apiClient),
         ),

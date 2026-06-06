@@ -15,6 +15,7 @@ class ApiException implements Exception {
   bool get isUnauthorized => statusCode == 401 && code == 'UNAUTHORIZED';
   bool get isInvalidRefreshToken => code == 'INVALID_REFRESH_TOKEN';
   bool get isAuthRequired => code == 'AUTH_REQUIRED';
+  bool get isRateLimited => statusCode == 429 || code == 'RATE_LIMITED';
 
   @override
   String toString() {

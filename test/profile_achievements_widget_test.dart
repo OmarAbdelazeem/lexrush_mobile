@@ -16,8 +16,10 @@ import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/auth/data/auth_repository.dart';
 import 'package:lexrush/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lexrush/features/profile/presentation/widgets/achievement_card.dart';
+import 'package:lexrush/shared/application/services/noop_integrations.dart';
 import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 
 void main() {
@@ -220,6 +222,9 @@ Future<void> _pumpProfile(
   await tester.pumpWidget(
     MultiRepositoryProvider(
       providers: <RepositoryProvider<dynamic>>[
+        RepositoryProvider<AnalyticsPort>(
+          create: (_) => NoopAnalyticsPort(),
+        ),
         RepositoryProvider<LexRushBackendRepository>(
           create: (_) => LexRushBackendRepository(apiClient: apiClient),
         ),
