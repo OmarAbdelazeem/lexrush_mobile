@@ -13,6 +13,7 @@ import 'package:lexrush/features/profile/presentation/widgets/achievement_card.d
 import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
 import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
 import 'package:lexrush/shared/presentation/widgets/primary_button.dart';
@@ -29,6 +30,7 @@ class ProfileScreen extends StatelessWidget {
         ),
         retryDrainer: context.read<ResultRetryDrainer>(),
         userId: context.read<AuthCubit>().state.user?.userId,
+        analytics: context.read<AnalyticsPort>(),
       ),
       child: const _ProfileView(),
     );

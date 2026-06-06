@@ -11,8 +11,10 @@ import 'package:lexrush/features/games/commas/domain/entities/commas_game_result
 import 'package:lexrush/features/games/commas/domain/services/comma_round_generator.dart';
 import 'package:lexrush/features/games/commas/domain/services/comma_scoring_service.dart';
 import 'package:lexrush/shared/application/cubits/base_game_session_cubit.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/replay_goal_service.dart';
 import 'package:lexrush/shared/application/services/scoring_service.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/domain/contracts/lexrush_game_controller.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
 import 'package:lexrush/shared/domain/entities/game_session_stats.dart';
@@ -27,12 +29,18 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
     ScoringService xpScoringService = const ScoringService(),
     ReplayGoalService replayGoalService = const ReplayGoalService(),
     CommasClock? clock,
+    AnalyticsPort? analytics,
+    String gameStartedSource = 'unknown',
+    bool usedBackendPrompts = false,
   }) : _roundGenerator =
            roundGenerator ?? CommaRoundGenerator(prompts: commaPrompts),
        _scoringService = scoringService,
        _xpScoringService = xpScoringService,
        _replayGoalService = replayGoalService,
        _clock = clock ?? DateTime.now,
+       _analytics = analytics,
+       _gameStartedSource = gameStartedSource,
+       _usedBackendPrompts = usedBackendPrompts,
        super(CommasState.initial());
 
   final CommaRoundGenerator _roundGenerator;
@@ -40,12 +48,16 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
   final ScoringService _xpScoringService;
   final ReplayGoalService _replayGoalService;
   final CommasClock _clock;
+  final AnalyticsPort? _analytics;
+  final String _gameStartedSource;
+  final bool _usedBackendPrompts;
 
   final List<int> _allResponseTimesMs = <int>[];
   final List<int> _currentResponseTimesMs = <int>[];
   Timer? _feedbackTimer;
   Timer? _nextPromptTimer;
   DateTime? _promptStartedAt;
+  DateTime? _sessionStartedAt;
   bool _ended = false;
   bool _currentPromptRecorded = false;
   bool _pendingNextPromptOnResume = false;
@@ -57,6 +69,7 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
   @override
   void start() {
     debugPrint('[CommasCubit] start');
+    _sessionStartedAt = DateTime.now();
     _ended = false;
     _feedbackTimer?.cancel();
     _nextPromptTimer?.cancel();
@@ -72,6 +85,15 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
       onFinished: endGame,
     );
     _loadNextPrompt();
+    unawaited(
+      _analytics
+          ?.trackGameStarted(
+            gameId: BackendGameIds.commas,
+            source: _gameStartedSource,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
+    );
   }
 
   @override
@@ -152,13 +174,29 @@ class CommasCubit extends BaseGameSessionCubit<CommasState>
     _pendingNextPromptOnResume = false;
     timerManager.cancel();
     _recordCurrentPromptIfNeeded();
+    final CommasGameResult result = _buildResult();
     emit(
       state.copyWith(
         status: CommasStatus.completed,
         clearCurrentPrompt: true,
         tokens: <CommaToken>[],
-        result: _buildResult(),
+        result: result,
       ),
+    );
+    final int elapsed =
+        _sessionStartedAt != null
+            ? DateTime.now().difference(_sessionStartedAt!).inSeconds
+            : sessionSeconds;
+    unawaited(
+      _analytics
+          ?.trackGameCompleted(
+            gameId: BackendGameIds.commas,
+            score: result.summary.stats.score,
+            accuracy: result.summary.stats.accuracy / 100.0,
+            durationSeconds: elapsed,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
     );
   }
 

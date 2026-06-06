@@ -9,6 +9,7 @@ import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/submit_game_result_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 
 enum BackendSyncPhase {
   idle,
@@ -80,17 +81,20 @@ class BackendResultSyncService {
     PendingResultQueue? pendingQueue,
     String? userId,
     DateTime Function()? now,
+    AnalyticsPort? analytics,
   }) : _gameId = gameId,
        _repository = repository,
        _pendingQueue = pendingQueue,
        _userId = userId,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _analytics = analytics;
 
   final String _gameId;
   final LexRushBackendRepository _repository;
   final PendingResultQueue? _pendingQueue;
   final String? _userId;
   final DateTime Function() _now;
+  final AnalyticsPort? _analytics;
 
   Future<CreateGameSessionResponse?>? _sessionFuture;
   CreateGameSessionResponse? _sessionResponse;
@@ -130,6 +134,11 @@ class BackendResultSyncService {
 
     if (!await _repository.hasAccessToken()) {
       handle.setStatus(const BackendSyncStatus.authRequired());
+      unawaited(
+        _analytics
+            ?.trackResultSyncStatus(gameId: _gameId, status: 'authRequired')
+            .catchError((_) {}),
+      );
       handle.complete();
       return;
     }
@@ -138,10 +147,18 @@ class BackendResultSyncService {
     final String? sessionId = session?.sessionId;
     if (sessionId == null) {
       debugPrint('[BackendResultSync] $_gameId skipped: no backend session');
-      handle.setStatus(
-        await _repository.hasAccessToken()
-            ? const BackendSyncStatus.failed()
-            : const BackendSyncStatus.authRequired(),
+      final bool hasToken = await _repository.hasAccessToken();
+      final BackendSyncStatus status = hasToken
+          ? const BackendSyncStatus.failed()
+          : const BackendSyncStatus.authRequired();
+      handle.setStatus(status);
+      unawaited(
+        _analytics
+            ?.trackResultSyncStatus(
+              gameId: _gameId,
+              status: hasToken ? 'failed' : 'authRequired',
+            )
+            .catchError((_) {}),
       );
       handle.complete();
       return;
@@ -154,30 +171,66 @@ class BackendResultSyncService {
       latestSkills = await _repository.getMySkills();
       _submissionTerminal = true;
       handle.setStatus(BackendSyncStatus.synced(xpEarned: response.xpEarned));
-      // TODO: Route sync and gameplay telemetry through a shared logger.
       debugPrint(
         '[BackendResultSync] $_gameId synced; totalXp=${latestProgress?.totalXp} '
         'skills=${latestSkills?.skills.length}',
+      );
+      unawaited(
+        _analytics
+            ?.trackResultSyncStatus(
+              gameId: _gameId,
+              status: 'synced',
+              xpEarned: response.xpEarned,
+            )
+            .catchError((_) {}),
       );
     } on ApiException catch (error) {
       if (error.isSessionAlreadyCompleted) {
         _submissionTerminal = true;
         handle.setStatus(const BackendSyncStatus.alreadySynced());
         debugPrint('[BackendResultSync] $_gameId session already completed');
+        // SESSION_ALREADY_COMPLETED is a handled success — not reported as crash.
+        unawaited(
+          _analytics
+              ?.trackResultSyncStatus(gameId: _gameId, status: 'synced')
+              .catchError((_) {}),
+        );
         handle.complete();
         return;
       }
       if (error.isAuthRequired) {
         handle.setStatus(const BackendSyncStatus.authRequired());
+        unawaited(
+          _analytics
+              ?.trackResultSyncStatus(
+                gameId: _gameId,
+                status: 'authRequired',
+              )
+              .catchError((_) {}),
+        );
         handle.complete();
         return;
       }
       await _tryEnqueueRetryable(error, request, sessionId);
       handle.setStatus(const BackendSyncStatus.failed());
       debugPrint('[BackendResultSync] $_gameId submit failed: $error');
+      final bool enqueued = ResultSyncErrorClassifier.isRetryable(error);
+      unawaited(
+        _analytics
+            ?.trackResultSyncStatus(
+              gameId: _gameId,
+              status: enqueued ? 'queued' : 'failed',
+            )
+            .catchError((_) {}),
+      );
     } on Object catch (error) {
       handle.setStatus(const BackendSyncStatus.failed());
       debugPrint('[BackendResultSync] $_gameId submit failed: $error');
+      unawaited(
+        _analytics
+            ?.trackResultSyncStatus(gameId: _gameId, status: 'failed')
+            .catchError((_) {}),
+      );
     } finally {
       handle.complete();
     }

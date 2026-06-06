@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexrush/core/auth/auth_invalidation_controller.dart';
@@ -10,9 +11,13 @@ import 'package:lexrush/core/network/api_config.dart';
 import 'package:lexrush/features/auth/application/auth_cubit.dart';
 import 'package:lexrush/features/auth/data/auth_repository.dart';
 import 'package:lexrush/features/onboarding/application/cubit/onboarding_flow_cubit.dart';
+import 'package:lexrush/shared/application/services/debug_observability.dart';
+import 'package:lexrush/shared/application/services/noop_integrations.dart';
 import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
 import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
+import 'package:lexrush/shared/domain/contracts/crash_reporter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LexRushApp extends StatelessWidget {
@@ -22,6 +27,14 @@ class LexRushApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: <RepositoryProvider<dynamic>>[
+        RepositoryProvider<AnalyticsPort>(
+          create: (_) =>
+              kDebugMode ? DebugAnalyticsPort() : NoopAnalyticsPort(),
+        ),
+        RepositoryProvider<CrashReporter>(
+          create: (_) =>
+              kDebugMode ? DebugCrashReporter() : NoopCrashReporter(),
+        ),
         RepositoryProvider<TokenStore>(create: (_) => const SecureTokenStore()),
         RepositoryProvider<AuthInvalidationController>(
           create: (_) => AuthInvalidationController(),
@@ -77,6 +90,8 @@ class LexRushApp extends StatelessWidget {
               invalidationController: context
                   .read<AuthInvalidationController>(),
               retryDrainer: context.read<ResultRetryDrainer>(),
+              analytics: context.read<AnalyticsPort>(),
+              crashReporter: context.read<CrashReporter>(),
             )..initialize(),
           ),
         ],

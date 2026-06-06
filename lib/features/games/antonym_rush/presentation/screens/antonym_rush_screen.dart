@@ -18,6 +18,7 @@ import 'package:lexrush/shared/application/services/backend_result_mappers.dart'
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 import 'package:lexrush/shared/presentation/widgets/combo_meter.dart';
 import 'package:lexrush/shared/presentation/widgets/game_timer.dart';
@@ -48,6 +49,7 @@ class _AntonymRushScreenState extends State<AntonymRushScreen> {
       repository: context.read<LexRushBackendRepository>(),
       pendingQueue: context.read<PendingResultQueue>(),
       userId: context.read<AuthCubit>().state.user?.userId,
+      analytics: context.read<AnalyticsPort>(),
     ).load();
   }
 
@@ -111,6 +113,7 @@ class _AntonymRushGameplayState extends State<_AntonymRushGameplay> {
       repository: context.read<LexRushBackendRepository>(),
       pendingQueue: context.read<PendingResultQueue>(),
       userId: context.read<AuthCubit>().state.user?.userId,
+      analytics: context.read<AnalyticsPort>(),
     );
   }
 
@@ -184,6 +187,8 @@ class _AntonymRushGameplayState extends State<_AntonymRushGameplay> {
             difficultyService: difficultyService,
             preservePromptOrder: widget.bootstrap.usedBackendPrompts,
           ),
+          analytics: context.read<AnalyticsPort>(),
+          usedBackendPrompts: widget.bootstrap.usedBackendPrompts,
         )..start();
       },
       child: BlocConsumer<AntonymRushCubit, AntonymRushState>(

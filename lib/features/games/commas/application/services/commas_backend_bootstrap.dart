@@ -8,6 +8,7 @@ import 'package:lexrush/shared/application/services/backend_result_sync_service.
 import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/create_game_session_dtos.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 
 class CommasBackendBootstrap {
   const CommasBackendBootstrap({
@@ -15,19 +16,30 @@ class CommasBackendBootstrap {
     PendingResultQueue? pendingQueue,
     String? userId,
     Duration timeout = const Duration(seconds: 2),
+    AnalyticsPort? analytics,
   }) : _repository = repository,
        _pendingQueue = pendingQueue,
        _userId = userId,
-       _timeout = timeout;
+       _timeout = timeout,
+       _analytics = analytics;
 
   final LexRushBackendRepository _repository;
   final PendingResultQueue? _pendingQueue;
   final String? _userId;
   final Duration _timeout;
+  final AnalyticsPort? _analytics;
 
   Future<CommasBootstrapResult> load() async {
     final bool hasAccessToken = await _repository.hasAccessToken();
     if (!hasAccessToken) {
+      unawaited(
+        _analytics
+            ?.trackBackendPromptBootstrap(
+              gameId: BackendGameIds.commas,
+              outcome: 'local_logged_out',
+            )
+            .catchError((_) {}),
+      );
       return const CommasBootstrapResult.local(
         fallbackSyncStatus: BackendSyncStatus.authRequired(),
       );
@@ -38,6 +50,7 @@ class CommasBackendBootstrap {
       repository: _repository,
       pendingQueue: _pendingQueue,
       userId: _userId,
+      analytics: _analytics,
     );
 
     try {
@@ -49,15 +62,53 @@ class CommasBackendBootstrap {
           ? <CommaPrompt>[]
           : CommaPromptSnapshotMapper.mapSessionPrompts(session.prompts);
       if (prompts.isEmpty) {
+        unawaited(
+          _analytics
+              ?.trackBackendPromptBootstrap(
+                gameId: BackendGameIds.commas,
+                outcome: session == null
+                    ? 'local_network_failure'
+                    : 'local_invalid_snapshot',
+              )
+              .catchError((_) {}),
+        );
         return const CommasBootstrapResult.local(
           fallbackSyncStatus: BackendSyncStatus.failed(),
         );
       }
+      unawaited(
+        _analytics
+            ?.trackBackendPromptBootstrap(
+              gameId: BackendGameIds.commas,
+              outcome: 'backend',
+            )
+            .catchError((_) {}),
+      );
       return CommasBootstrapResult.backend(
         prompts: prompts,
         syncService: syncService,
       );
+    } on TimeoutException {
+      unawaited(
+        _analytics
+            ?.trackBackendPromptBootstrap(
+              gameId: BackendGameIds.commas,
+              outcome: 'local_timeout',
+            )
+            .catchError((_) {}),
+      );
+      return const CommasBootstrapResult.local(
+        fallbackSyncStatus: BackendSyncStatus.failed(),
+      );
     } on Object {
+      unawaited(
+        _analytics
+            ?.trackBackendPromptBootstrap(
+              gameId: BackendGameIds.commas,
+              outcome: 'local_network_failure',
+            )
+            .catchError((_) {}),
+      );
       return const CommasBootstrapResult.local(
         fallbackSyncStatus: BackendSyncStatus.failed(),
       );

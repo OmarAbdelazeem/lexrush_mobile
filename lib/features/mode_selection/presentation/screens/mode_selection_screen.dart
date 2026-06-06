@@ -12,6 +12,7 @@ import 'package:lexrush/features/mode_selection/data/backend_today_repository.da
 import 'package:lexrush/shared/application/services/game_registry_service.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
 import 'package:lexrush/shared/data/backend/today_dtos.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/domain/entities/game_definition.dart';
 import 'package:lexrush/shared/domain/entities/game_mode.dart';
 import 'package:lexrush/shared/domain/entities/game_mode_codec.dart';
@@ -26,6 +27,7 @@ class ModeSelectionScreen extends StatelessWidget {
         repository: BackendTodayRepository(
           context.read<LexRushBackendRepository>(),
         ),
+        analytics: context.read<AnalyticsPort>(),
       ),
       child: const _ModeSelectionView(),
     );

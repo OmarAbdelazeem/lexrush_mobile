@@ -10,8 +10,10 @@ import 'package:lexrush/features/games/association/domain/entities/association_r
 import 'package:lexrush/features/games/association/domain/entities/association_round_result.dart';
 import 'package:lexrush/features/games/association/domain/services/association_round_generator.dart';
 import 'package:lexrush/shared/application/cubits/base_game_session_cubit.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/replay_goal_service.dart';
 import 'package:lexrush/shared/application/services/scoring_service.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/domain/contracts/lexrush_game_controller.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
 import 'package:lexrush/shared/domain/entities/game_session_stats.dart';
@@ -22,16 +24,25 @@ class AssociationCubit extends BaseGameSessionCubit<AssociationState>
     AssociationRoundGenerator? roundGenerator,
     ScoringService? scoringService,
     ReplayGoalService? replayGoalService,
+    AnalyticsPort? analytics,
+    String gameStartedSource = 'unknown',
+    bool usedBackendPrompts = false,
   }) : _roundGenerator =
            roundGenerator ??
            AssociationRoundGenerator(prompts: associationPrompts),
        _scoringService = scoringService ?? const ScoringService(),
        _replayGoalService = replayGoalService ?? const ReplayGoalService(),
+       _analytics = analytics,
+       _gameStartedSource = gameStartedSource,
+       _usedBackendPrompts = usedBackendPrompts,
        super(AssociationState.initial());
 
   final AssociationRoundGenerator _roundGenerator;
   final ScoringService _scoringService;
   final ReplayGoalService _replayGoalService;
+  final AnalyticsPort? _analytics;
+  final String _gameStartedSource;
+  final bool _usedBackendPrompts;
   final Set<int> _resolvedRoundIds = <int>{};
 
   Timer? _roundTimer;
@@ -41,6 +52,7 @@ class AssociationCubit extends BaseGameSessionCubit<AssociationState>
   Duration? _pausedRoundRemaining;
   Duration? _pausedTransitionRemaining;
   AssociationStatus? _pausedFromStatus;
+  DateTime? _sessionStartedAt;
   bool _ended = false;
 
   static const int _sessionSeconds = 60;
@@ -55,6 +67,7 @@ class AssociationCubit extends BaseGameSessionCubit<AssociationState>
   @override
   void start() {
     _logTelemetry('session_start');
+    _sessionStartedAt = DateTime.now();
     _ended = false;
     _cancelRoundTimer();
     _cancelTransitionTimer();
@@ -76,6 +89,15 @@ class AssociationCubit extends BaseGameSessionCubit<AssociationState>
       onFinished: endGame,
     );
     _startRound();
+    unawaited(
+      _analytics
+          ?.trackGameStarted(
+            gameId: BackendGameIds.association,
+            source: _gameStartedSource,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
+    );
   }
 
   @override
@@ -186,12 +208,28 @@ class AssociationCubit extends BaseGameSessionCubit<AssociationState>
     _cancelRoundTimer();
     _cancelTransitionTimer();
     timerManager.cancel();
+    final AssociationGameResult result = _buildResult();
     emit(
       state.copyWith(
         status: AssociationStatus.finished,
         clearRound: true,
-        result: _buildResult(),
+        result: result,
       ),
+    );
+    final int elapsed =
+        _sessionStartedAt != null
+            ? DateTime.now().difference(_sessionStartedAt!).inSeconds
+            : _sessionSeconds;
+    unawaited(
+      _analytics
+          ?.trackGameCompleted(
+            gameId: BackendGameIds.association,
+            score: result.summary.stats.score,
+            accuracy: result.summary.stats.accuracy / 100.0,
+            durationSeconds: elapsed,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
     );
   }
 

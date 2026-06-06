@@ -7,16 +7,21 @@ import 'package:lexrush/shared/application/services/offline_result_retry_coordin
 import 'package:lexrush/shared/data/backend/user_achievements_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_progress_dtos.dart';
 import 'package:lexrush/shared/data/backend/user_skills_dtos.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 
 class ProfileCubit extends Cubit<ProfileState> {
   ProfileCubit({
     required ProfileRepository repository,
     ResultRetryDrainer? retryDrainer,
     String? userId,
+    AnalyticsPort? analytics,
   }) : _repository = repository,
        _retryDrainer = retryDrainer,
        _userId = userId,
+       _analytics = analytics,
        super(ProfileState.initial());
+
+  final AnalyticsPort? _analytics;
 
   final ProfileRepository _repository;
   final ResultRetryDrainer? _retryDrainer;
@@ -80,6 +85,16 @@ class ProfileCubit extends Cubit<ProfileState> {
           achievements: achievements.achievements,
           clearAchievementsError: true,
         ),
+      );
+      unawaited(
+        _analytics
+            ?.trackProfileLoaded(
+              achievementsCount: achievements.achievements.length,
+              unlockedAchievementsCount: achievements.achievements
+                  .where((a) => a.unlockedAt != null)
+                  .length,
+            )
+            .catchError((_) {}),
       );
     } on Object {
       emit(

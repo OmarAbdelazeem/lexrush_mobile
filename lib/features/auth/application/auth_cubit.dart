@@ -7,15 +7,21 @@ import 'package:lexrush/features/auth/application/auth_state.dart';
 import 'package:lexrush/features/auth/data/auth_dtos.dart';
 import 'package:lexrush/features/auth/data/auth_repository.dart';
 import 'package:lexrush/shared/application/services/offline_result_retry_coordinator.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
+import 'package:lexrush/shared/domain/contracts/crash_reporter.dart';
 
 class AuthCubit extends Cubit<AuthState> {
   AuthCubit({
     required AuthRepository repository,
     required AuthInvalidationController invalidationController,
     ResultRetryDrainer? retryDrainer,
+    AnalyticsPort? analytics,
+    CrashReporter? crashReporter,
   }) : _repository = repository,
        _invalidationController = invalidationController,
        _retryDrainer = retryDrainer,
+       _analytics = analytics,
+       _crashReporter = crashReporter,
        super(const AuthState.initial()) {
     _invalidationSubscription = _invalidationController.stream.listen((_) {
       emit(const AuthState.unauthenticated());
@@ -25,9 +31,20 @@ class AuthCubit extends Cubit<AuthState> {
   final AuthRepository _repository;
   final AuthInvalidationController _invalidationController;
   final ResultRetryDrainer? _retryDrainer;
+  final AnalyticsPort? _analytics;
+  // ignore: unused_field
+  final CrashReporter? _crashReporter;
+
   late final StreamSubscription<void> _invalidationSubscription;
 
+  static bool _appStartedTracked = false;
+
   Future<void> initialize() async {
+    if (!_appStartedTracked) {
+      _appStartedTracked = true;
+      unawaited(_analytics?.trackAppStarted().catchError((_) {}));
+    }
+
     final bool hasTokens = await _repository.hasTokens();
     if (!hasTokens) {
       emit(const AuthState.unauthenticated());
@@ -60,6 +77,11 @@ class AuthCubit extends Cubit<AuthState> {
       );
       emit(AuthState.authenticated(user: response.user));
       _drainPendingResults(response.user.userId);
+      unawaited(
+        _analytics
+            ?.trackAuthLoginSuccess(userId: response.user.userId)
+            .catchError((_) {}),
+      );
     } on Object {
       emit(const AuthState.error('Sign in failed. Check your details.'));
     }
@@ -81,6 +103,11 @@ class AuthCubit extends Cubit<AuthState> {
       );
       emit(AuthState.authenticated(user: response.user));
       _drainPendingResults(response.user.userId);
+      unawaited(
+        _analytics
+            ?.trackAuthRegisterSuccess(userId: response.user.userId)
+            .catchError((_) {}),
+      );
     } on Object {
       emit(const AuthState.error('Could not create that account.'));
     }
@@ -94,6 +121,7 @@ class AuthCubit extends Cubit<AuthState> {
       // Local tokens are cleared by the repository even if backend logout fails.
     }
     emit(const AuthState.unauthenticated());
+    unawaited(_analytics?.trackAuthLogout().catchError((_) {}));
   }
 
   @override

@@ -11,7 +11,10 @@ import 'package:lexrush/features/games/sequencing_memory/domain/services/sequenc
 import 'package:lexrush/features/games/sequencing_memory/domain/services/sequencing_round_generator.dart';
 import 'package:lexrush/features/games/sequencing_memory/domain/services/sequencing_scoring_service.dart';
 import 'package:lexrush/shared/application/cubits/base_game_session_cubit.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/replay_goal_service.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
+import 'package:lexrush/shared/domain/contracts/crash_reporter.dart';
 import 'package:lexrush/shared/domain/contracts/lexrush_game_controller.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
 import 'package:lexrush/shared/domain/entities/game_session_stats.dart';
@@ -29,6 +32,10 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     // Pass shorter values in tests to keep suites fast.
     Duration listenFailsafePerItem = const Duration(seconds: 5),
     Duration listenFailsafeBase = const Duration(seconds: 5),
+    AnalyticsPort? analytics,
+    CrashReporter? crashReporter,
+    String gameStartedSource = 'unknown',
+    bool usedBackendPrompts = false,
   }) : _roundGenerator =
            roundGenerator ??
            SequencingRoundGenerator(prompts: sequencingPrompts),
@@ -37,6 +44,10 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
        _replayGoalService = replayGoalService,
        _listenFailsafePerItem = listenFailsafePerItem,
        _listenFailsafeBase = listenFailsafeBase,
+       _analytics = analytics,
+       _crashReporter = crashReporter,
+       _gameStartedSource = gameStartedSource,
+       _usedBackendPrompts = usedBackendPrompts,
        super(SequencingMemoryState.initial());
 
   static const int _totalChallenges = 3;
@@ -47,11 +58,16 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   final ReplayGoalService _replayGoalService;
   final Duration _listenFailsafePerItem;
   final Duration _listenFailsafeBase;
+  final AnalyticsPort? _analytics;
+  final CrashReporter? _crashReporter;
+  final String _gameStartedSource;
+  final bool _usedBackendPrompts;
 
   StreamSubscription<SequencingAudioProgress>? _audioSubscription;
   // Fires if the audio service never delivers a completion or error event.
   Timer? _listenFailsafeTimer;
   DateTime? _arrangeStartedAt;
+  DateTime? _sessionStartedAt;
   bool _ended = false;
   int _activePlaybackId = 0;
   SequencingStage? _activeListeningStage;
@@ -61,6 +77,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   @override
   void start() {
     _log('session_start');
+    _sessionStartedAt = DateTime.now();
     _ended = false;
     unawaited(_stopAudio());
     _roundGenerator.reset();
@@ -71,6 +88,15 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
       ),
     );
     _startNextChallenge();
+    unawaited(
+      _analytics
+          ?.trackGameStarted(
+            gameId: BackendGameIds.sequencingMemory,
+            source: _gameStartedSource,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
+    );
   }
 
   @override
@@ -249,12 +275,28 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     _ended = true;
     unawaited(_stopAudio());
     _log('session_end score=${state.score} review=${state.review.length}');
+    final SequencingGameResult result = _buildResult();
     emit(
       state.copyWith(
         stage: SequencingStage.finished,
         clearCurrentRound: true,
-        result: _buildResult(),
+        result: result,
       ),
+    );
+    final int elapsed =
+        _sessionStartedAt != null
+            ? DateTime.now().difference(_sessionStartedAt!).inSeconds
+            : 0;
+    unawaited(
+      _analytics
+          ?.trackGameCompleted(
+            gameId: BackendGameIds.sequencingMemory,
+            score: result.summary.stats.score,
+            accuracy: result.summary.stats.accuracy / 100.0,
+            durationSeconds: elapsed,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
     );
   }
 
@@ -334,6 +376,15 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     _log('listen_failsafe_fired stage=${stage.name}');
     _listenFailsafeTimer = null;
     _activeListeningStage = null;
+    unawaited(
+      _analytics
+          ?.trackTtsFailsafeTriggered(
+            stage: stage.name,
+            itemCount: state.currentItems.length,
+            reason: 'timeout',
+          )
+          .catchError((_) {}),
+    );
     _enterArrange(_arrangeStageFor(stage));
   }
 
@@ -458,6 +509,23 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
       _listenFailsafeTimer?.cancel();
       _listenFailsafeTimer = null;
       _activeListeningStage = null;
+      unawaited(
+        _analytics
+            ?.trackTtsFailsafeTriggered(
+              stage: listeningStage.name,
+              itemCount: state.currentItems.length,
+              reason: 'error',
+            )
+            .catchError((_) {}),
+      );
+      unawaited(
+        _crashReporter
+            ?.captureException(
+              Exception('TTS audio error'),
+              context: 'sequencing_memory tts stage=${listeningStage.name}',
+            )
+            .catchError((_) {}),
+      );
       _enterArrange(_arrangeStageFor(listeningStage));
       return;
     }

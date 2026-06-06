@@ -16,6 +16,7 @@ import 'package:lexrush/shared/application/services/backend_result_mappers.dart'
 import 'package:lexrush/shared/application/services/backend_result_sync_service.dart';
 import 'package:lexrush/shared/application/services/pending_result_queue.dart';
 import 'package:lexrush/shared/data/backend/lexrush_backend_repository.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/domain/entities/synced_result_extra.dart';
 
 class CommasScreen extends StatefulWidget {
@@ -38,6 +39,7 @@ class _CommasScreenState extends State<CommasScreen> {
       repository: context.read<LexRushBackendRepository>(),
       pendingQueue: context.read<PendingResultQueue>(),
       userId: context.read<AuthCubit>().state.user?.userId,
+      analytics: context.read<AnalyticsPort>(),
     ).load();
   }
 
@@ -78,6 +80,8 @@ class _CommasGameplayState extends State<_CommasGameplay> {
     return BlocProvider<CommasCubit>(
       create: (_) => CommasCubit(
         roundGenerator: CommaRoundGenerator(prompts: widget.bootstrap.prompts),
+        analytics: context.read<AnalyticsPort>(),
+        usedBackendPrompts: widget.bootstrap.usedBackendPrompts,
       )..start(),
       child: BlocConsumer<CommasCubit, CommasState>(
         listenWhen: (previous, current) =>

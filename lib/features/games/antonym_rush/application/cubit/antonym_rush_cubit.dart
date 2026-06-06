@@ -8,8 +8,10 @@ import 'package:lexrush/features/games/antonym_rush/domain/entities/balloon_opti
 import 'package:lexrush/features/games/antonym_rush/domain/services/antonym_difficulty_service.dart';
 import 'package:lexrush/features/games/antonym_rush/domain/services/antonym_round_generator.dart';
 import 'package:lexrush/shared/application/cubits/base_game_session_cubit.dart';
+import 'package:lexrush/shared/application/services/backend_result_mappers.dart';
 import 'package:lexrush/shared/application/services/replay_goal_service.dart';
 import 'package:lexrush/shared/application/services/scoring_service.dart';
+import 'package:lexrush/shared/domain/contracts/analytics_port.dart';
 import 'package:lexrush/shared/domain/contracts/lexrush_game_controller.dart';
 import 'package:lexrush/shared/domain/entities/difficulty_phase.dart';
 import 'package:lexrush/shared/domain/entities/game_result.dart';
@@ -22,6 +24,9 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     AntonymDifficultyService? difficultyService,
     ScoringService? scoringService,
     ReplayGoalService? replayGoalService,
+    AnalyticsPort? analytics,
+    String gameStartedSource = 'unknown',
+    bool usedBackendPrompts = false,
   }) : _difficultyService =
            difficultyService ?? const AntonymDifficultyService(),
        _scoringService = scoringService ?? const ScoringService(),
@@ -33,12 +38,18 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
              difficultyService:
                  difficultyService ?? const AntonymDifficultyService(),
            ),
+       _analytics = analytics,
+       _gameStartedSource = gameStartedSource,
+       _usedBackendPrompts = usedBackendPrompts,
        super(AntonymRushState.initial());
 
   final AntonymDifficultyService _difficultyService;
   final ScoringService _scoringService;
   final ReplayGoalService _replayGoalService;
   final AntonymRoundGenerator _roundGenerator;
+  final AnalyticsPort? _analytics;
+  final String _gameStartedSource;
+  final bool _usedBackendPrompts;
   final List<int> _responseTimesMs = <int>[];
   final Set<int> _resolvedRoundIds = <int>{};
   final Map<int, _RoundTelemetry> _roundTelemetry = <int, _RoundTelemetry>{};
@@ -50,6 +61,7 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
   };
   Timer? _nextRoundTimer;
   Timer? _roundEscapeTimer;
+  DateTime? _sessionStartedAt;
   bool _ended = false;
   bool _pendingRoundStartOnResume = false;
 
@@ -69,6 +81,7 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
   @override
   void start() {
     debugPrint('[AntonymRushCubit] start');
+    _sessionStartedAt = DateTime.now();
     _ended = false;
     _responseTimesMs.clear();
     _resolvedRoundIds.clear();
@@ -98,6 +111,15 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
       onFinished: endGame,
     );
     _startRound();
+    unawaited(
+      _analytics
+          ?.trackGameStarted(
+            gameId: BackendGameIds.antonymRush,
+            source: _gameStartedSource,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
+    );
   }
 
   @override
@@ -277,12 +299,28 @@ class AntonymRushCubit extends BaseGameSessionCubit<AntonymRushState>
     _roundEscapeTimer?.cancel();
     _pendingRoundStartOnResume = false;
     timerManager.cancel();
+    final GameResult result = _buildResult();
     emit(
       state.copyWith(
         status: AntonymRushStatus.ended,
         clearRound: true,
-        gameResult: _buildResult(),
+        gameResult: result,
       ),
+    );
+    final int elapsed =
+        _sessionStartedAt != null
+            ? DateTime.now().difference(_sessionStartedAt!).inSeconds
+            : 60;
+    unawaited(
+      _analytics
+          ?.trackGameCompleted(
+            gameId: BackendGameIds.antonymRush,
+            score: result.stats.score,
+            accuracy: result.stats.accuracy / 100.0,
+            durationSeconds: elapsed,
+            usedBackendPrompts: _usedBackendPrompts,
+          )
+          .catchError((_) {}),
     );
   }
 
