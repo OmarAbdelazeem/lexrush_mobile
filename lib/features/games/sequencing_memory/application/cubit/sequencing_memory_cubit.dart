@@ -23,12 +23,20 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     SequencingScoringService scoringService = const SequencingScoringService(),
     SequencingAudioService? audioService,
     ReplayGoalService replayGoalService = const ReplayGoalService(),
+    // Per-item and base durations for the listen-phase failsafe timer.
+    // Total timeout = base + (perItem * itemCount).
+    // Defaults are conservative enough that healthy TTS never trips them.
+    // Pass shorter values in tests to keep suites fast.
+    Duration listenFailsafePerItem = const Duration(seconds: 5),
+    Duration listenFailsafeBase = const Duration(seconds: 5),
   }) : _roundGenerator =
            roundGenerator ??
            SequencingRoundGenerator(prompts: sequencingPrompts),
        _scoringService = scoringService,
        _audioService = audioService ?? MockSequencingAudioService(),
        _replayGoalService = replayGoalService,
+       _listenFailsafePerItem = listenFailsafePerItem,
+       _listenFailsafeBase = listenFailsafeBase,
        super(SequencingMemoryState.initial());
 
   static const int _totalChallenges = 3;
@@ -37,8 +45,12 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   final SequencingScoringService _scoringService;
   final SequencingAudioService _audioService;
   final ReplayGoalService _replayGoalService;
+  final Duration _listenFailsafePerItem;
+  final Duration _listenFailsafeBase;
 
   StreamSubscription<SequencingAudioProgress>? _audioSubscription;
+  // Fires if the audio service never delivers a completion or error event.
+  Timer? _listenFailsafeTimer;
   DateTime? _arrangeStartedAt;
   bool _ended = false;
   int _activePlaybackId = 0;
@@ -75,6 +87,9 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
       return;
     }
     _log('pause from=${state.stage.name}');
+    // Cancel failsafe while paused — resume will reschedule via _enterListening.
+    _listenFailsafeTimer?.cancel();
+    _listenFailsafeTimer = null;
     if (state.stage.isListening) {
       unawaited(_audioService.pause());
     }
@@ -96,7 +111,7 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     _log('resume to=${nextStage.name}');
     emit(state.copyWith(stage: nextStage, clearPausedFromStage: true));
     if (nextStage.isListening) {
-      _enterListening(nextStage);
+      unawaited(_enterListening(nextStage));
     }
   }
 
@@ -291,6 +306,35 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     final int playbackId = _audioService.speakSequence(items);
     _activePlaybackId = playbackId;
     emit(state.copyWith(currentAudioPlaybackId: playbackId));
+    _scheduleListenFailsafe(items, playbackId, stage);
+  }
+
+  // Schedules the failsafe that fires when the audio service does not deliver
+  // completion or error within base + perItem * itemCount.
+  void _scheduleListenFailsafe(
+    List<String> items,
+    int playbackId,
+    SequencingStage stage,
+  ) {
+    _listenFailsafeTimer?.cancel();
+    final Duration timeout =
+        _listenFailsafeBase + _listenFailsafePerItem * items.length;
+    _listenFailsafeTimer = Timer(timeout, () {
+      _onListenFailsafe(playbackId, stage);
+    });
+  }
+
+  void _onListenFailsafe(int playbackId, SequencingStage stage) {
+    if (_ended ||
+        _activeListeningStage != stage ||
+        playbackId != _activePlaybackId ||
+        state.stage != stage) {
+      return;
+    }
+    _log('listen_failsafe_fired stage=${stage.name}');
+    _listenFailsafeTimer = null;
+    _activeListeningStage = null;
+    _enterArrange(_arrangeStageFor(stage));
   }
 
   void _enterArrange(SequencingStage stage) {
@@ -411,9 +455,15 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
     }
     if (progress.hasError) {
       _log('audio_error ${progress.errorMessage}');
+      _listenFailsafeTimer?.cancel();
+      _listenFailsafeTimer = null;
+      _activeListeningStage = null;
+      _enterArrange(_arrangeStageFor(listeningStage));
       return;
     }
     if (progress.isComplete) {
+      _listenFailsafeTimer?.cancel();
+      _listenFailsafeTimer = null;
       _activeListeningStage = null;
       emit(
         state.copyWith(
@@ -433,6 +483,8 @@ class SequencingMemoryCubit extends BaseGameSessionCubit<SequencingMemoryState>
   }
 
   Future<void> _stopAudio() async {
+    _listenFailsafeTimer?.cancel();
+    _listenFailsafeTimer = null;
     _activeListeningStage = null;
     await _audioSubscription?.cancel();
     _audioSubscription = null;

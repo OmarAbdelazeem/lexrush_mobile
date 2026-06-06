@@ -275,6 +275,8 @@ void main() {
       await cubit.close();
     });
   });
+
+  _addFailsafeTests();
 }
 
 class _ControlledAudioService implements SequencingAudioService {
@@ -330,6 +332,18 @@ class _ControlledAudioService implements SequencingAudioService {
     );
   }
 
+  void emitError({int? playbackId, String message = 'tts_crash'}) {
+    _isSpeaking = false;
+    _progress.add(
+      SequencingAudioProgress(
+        playbackId: playbackId ?? activePlaybackId,
+        spokenCount: 0,
+        currentItemIndex: 0,
+        errorMessage: message,
+      ),
+    );
+  }
+
   @override
   Future<void> stop() async {
     stopCount += 1;
@@ -361,6 +375,237 @@ class _ControlledAudioService implements SequencingAudioService {
   Future<void> dispose() async {
     await _progress.close();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Failsafe tests
+// ---------------------------------------------------------------------------
+
+// Cubit factory using an extremely short failsafe so tests do not wait seconds.
+SequencingMemoryCubit _cubitWithFailsafe(
+  _ControlledAudioService audio, {
+  Duration perItem = const Duration(milliseconds: 40),
+  Duration base = const Duration(milliseconds: 20),
+}) {
+  return SequencingMemoryCubit(
+    audioService: audio,
+    listenFailsafePerItem: perItem,
+    listenFailsafeBase: base,
+  );
+}
+
+void _addFailsafeTests() {
+  group('TTS listen failsafe', () {
+    test('audio error advances to arrange immediately without waiting for failsafe',
+        () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(audio);
+
+      cubit.start();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      audio.emitError(message: 'tts_engine_crash');
+      await _settle();
+
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+      expect(cubit.state.currentCards, hasLength(3));
+
+      await cubit.close();
+    });
+
+    test('failsafe fires when audio completion never arrives', () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(audio);
+
+      cubit.start();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      // Do NOT call audio.complete() — let the failsafe timer fire.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+      expect(cubit.state.currentCards, hasLength(3));
+
+      await cubit.close();
+    });
+
+    test('normal audio completion cancels failsafe — no double advance', () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      // Short failsafe, but complete fires first.
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(
+        audio,
+        base: const Duration(milliseconds: 200),
+        perItem: const Duration(milliseconds: 200),
+      );
+
+      cubit.start();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      // Complete before failsafe fires.
+      audio.complete();
+      await _settle();
+
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+
+      // Wait past failsafe window; stage must not change again.
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+
+      await cubit.close();
+    });
+
+    test('pause cancels failsafe; game stays paused and does not auto-advance',
+        () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(
+        audio,
+        base: const Duration(milliseconds: 150),
+        perItem: const Duration(milliseconds: 100),
+      );
+
+      cubit.start();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      cubit.pause();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.paused);
+
+      // Wait well past the failsafe window; must remain paused.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(cubit.state.stage, SequencingStage.paused);
+
+      await cubit.close();
+    });
+
+    test('resume after pause reschedules the failsafe', () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(audio);
+
+      cubit.start();
+      await _settle();
+
+      cubit.pause();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.paused);
+
+      // Simulate delay during pause — failsafe must not have fired.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(cubit.state.stage, SequencingStage.paused);
+
+      // Resume — should re-enter listening and reschedule failsafe.
+      cubit.resume();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      // New failsafe fires after another short delay without audio completion.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+
+      await cubit.close();
+    });
+
+    test('restart resets pending failsafe; new session works from scratch',
+        () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      // Use default short values (base=20ms, perItem=40ms → fires in ~140ms)
+      // so the new-session failsafe arrives well within the 300ms wait below.
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(audio);
+
+      cubit.start();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      // Restart before the failsafe fires.
+      cubit.restart();
+      await _settle();
+
+      // Stale failsafe must not have advanced the new round.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      // New failsafe will have fired by now and advanced to arrange.
+      expect(cubit.state.stage, SequencingStage.arrangePartOne);
+      // It must be round 1 of the fresh session.
+      expect(cubit.state.currentRound?.roundId, 1);
+      expect(cubit.state.currentChallengeIndex, 1);
+
+      await cubit.close();
+    });
+
+    test('dispose does not emit after close', () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(
+        audio,
+        base: const Duration(milliseconds: 50),
+        perItem: const Duration(milliseconds: 50),
+      );
+
+      cubit.start();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartOne);
+
+      // Close while in listening stage — failsafe timer and subscription must
+      // be cancelled so nothing emits after close.
+      await cubit.close();
+
+      // Wait past the would-have-fired window — no assertion errors expected.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+
+    test('stale playback id from a previous round does not advance new round',
+        () async {
+      final _ControlledAudioService audio = _ControlledAudioService();
+      final SequencingMemoryCubit cubit = _cubitWithFailsafe(audio);
+
+      cubit.start();
+      await _settle();
+      final int stalePlaybackId = audio.activePlaybackId;
+
+      // Advance normally to part two.
+      audio.complete();
+      await _settle();
+      _submitPerfect(cubit);
+      cubit.continueAfterFeedback();
+      await _settle();
+      expect(cubit.state.stage, SequencingStage.listenPartTwo);
+
+      // Deliver a late completion for the stale part one playback id.
+      audio.complete(playbackId: stalePlaybackId);
+      await _settle();
+
+      // Must remain in listenPartTwo, not advance twice.
+      expect(cubit.state.stage, SequencingStage.listenPartTwo);
+
+      await cubit.close();
+    });
+
+    test(
+      'failsafe fires for listenPartTwo when part one completed normally',
+      () async {
+        final _ControlledAudioService audio = _ControlledAudioService();
+        final SequencingMemoryCubit cubit = _cubitWithFailsafe(audio);
+
+        cubit.start();
+        await _settle();
+
+        // Part one completes normally.
+        audio.complete();
+        await _settle();
+        _submitPerfect(cubit);
+        cubit.continueAfterFeedback();
+        await _settle();
+        expect(cubit.state.stage, SequencingStage.listenPartTwo);
+
+        // Part two TTS hangs — failsafe should advance to arrangePartTwo.
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(cubit.state.stage, SequencingStage.arrangePartTwo);
+
+        await cubit.close();
+      },
+    );
+  });
 }
 
 void _submitPerfect(SequencingMemoryCubit cubit) {
