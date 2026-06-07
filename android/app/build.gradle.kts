@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,8 +8,26 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val keystorePropertiesFile = rootProject.file("key.properties")
+
+// Validate that key.properties exists before any release build executes.
+// This check runs after the task graph is resolved, so debug builds are unaffected.
+gradle.taskGraph.whenReady {
+    val hasReleaseBuild = allTasks.any { task ->
+        task.name == "assembleRelease" || task.name == "bundleRelease"
+    }
+    if (hasReleaseBuild && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "\n\n" +
+            "Release signing requires android/key.properties.\n" +
+            "Debug builds do not require it.\n" +
+            "See docs/deployment/mobile_release_runbook.md for setup instructions.\n",
+        )
+    }
+}
+
 android {
-    namespace = "com.example.lexrush"
+    namespace = "com.lexrush.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,11 +40,22 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    if (keystorePropertiesFile.exists()) {
+        val keystoreProperties = Properties().apply {
+            load(FileInputStream(keystorePropertiesFile))
+        }
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.lexrush"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.lexrush.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -31,10 +63,16 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // signingConfig is only set when key.properties is present.
+            // If it is absent, the gradle.taskGraph.whenReady guard above
+            // throws a clear error before any release task executes.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

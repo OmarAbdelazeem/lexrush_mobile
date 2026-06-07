@@ -57,6 +57,7 @@ Short handoff for the **next coding agent**. For the full project brief (rules, 
 
 ### Docs
 - **[`docs/testing/Testing_Tutorial.md`](../testing/Testing_Tutorial.md)** — manual QA: emulator, physical device, `adb` taps/screenshots/recordings, iOS Simulator, `pm clear`, bug template.
+- **[`docs/deployment/mobile_release_runbook.md`](../deployment/mobile_release_runbook.md)** — Flutter version, dependency install, analyze/test commands, Android build commands with `--dart-define`, API URL behavior, signing status, secure storage, offline retry queue, analytics/crash posture, manual QA checklist, emulator caveats, open release questions.
 
 ---
 
