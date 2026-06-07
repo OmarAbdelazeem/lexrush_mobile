@@ -1,4 +1,4 @@
-package com.example.lexrush
+package com.lexrush.app
 
 import io.flutter.embedding.android.FlutterActivity
 
