@@ -147,7 +147,8 @@ Add a fail-fast mechanism (assertion or startup log warning) in release mode whe
 
 **Behavior:**
 - **Debug builds** — work without `android/key.properties`. No signing config is needed.
-- **Release builds** (`--release`) — **fail with a clear Gradle error** if `android/key.properties` is absent. There is no silent fallback to debug signing.
+- **Release builds** (`--release`) — temporarily fall back to debug signing when `android/key.properties` is absent so local QA can generate an installable release-mode APK.
+- **Production distribution** — restore the fail-fast release signing guard before publishing. Do not ship a debug-signed release APK.
 
 ### Setting up release signing (done once per machine)
 

@@ -10,18 +10,18 @@ plugins {
 
 val keystorePropertiesFile = rootProject.file("key.properties")
 
-// Validate that key.properties exists before any release build executes.
-// This check runs after the task graph is resolved, so debug builds are unaffected.
+// Temporary testing fallback: allow release builds without key.properties.
+// TODO: Restore the fail-fast guard before production distribution.
 gradle.taskGraph.whenReady {
     val hasReleaseBuild = allTasks.any { task ->
         task.name == "assembleRelease" || task.name == "bundleRelease"
     }
     if (hasReleaseBuild && !keystorePropertiesFile.exists()) {
-        throw GradleException(
+        logger.warn(
             "\n\n" +
-            "Release signing requires android/key.properties.\n" +
-            "Debug builds do not require it.\n" +
-            "See docs/deployment/mobile_release_runbook.md for setup instructions.\n",
+                "WARNING: android/key.properties is missing.\n" +
+                "Release build will use the debug signing key for local testing only.\n" +
+                "Restore the release signing guard before production distribution.\n",
         )
     }
 }
@@ -67,11 +67,13 @@ android {
             applicationIdSuffix = ".debug"
         }
         release {
-            // signingConfig is only set when key.properties is present.
-            // If it is absent, the gradle.taskGraph.whenReady guard above
-            // throws a clear error before any release task executes.
+            // Temporary testing fallback: use debug signing when release
+            // key.properties is absent so release-mode APKs are installable.
+            // TODO: Restore release-only signing before production distribution.
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }
