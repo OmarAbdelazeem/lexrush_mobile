@@ -965,6 +965,7 @@ class _PauseOverlay extends StatelessWidget {
         ),
         child: Center(
           child: Container(
+            width: 300,
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
               color: AppColors.surface,
@@ -981,9 +982,28 @@ class _PauseOverlay extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: cubit.resume,
-                  child: const Text('Resume'),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: cubit.resume,
+                    child: const Text('Resume'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: cubit.restart,
+                    child: const Text('Restart'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: cubit.endGame,
+                    child: const Text('End Session'),
+                  ),
                 ),
               ],
             ),

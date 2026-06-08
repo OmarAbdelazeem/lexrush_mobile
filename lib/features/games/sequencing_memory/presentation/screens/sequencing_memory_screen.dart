@@ -54,17 +54,18 @@ class _SequencingMemoryScreenState extends State<SequencingMemoryScreen> {
   Widget build(BuildContext context) {
     return FutureBuilder<SequencingMemoryBootstrapResult>(
       future: _bootstrapFuture,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<SequencingMemoryBootstrapResult> snapshot,
-      ) {
-        if (!snapshot.hasData) {
-          return const PortraitShell(
-            child: Center(child: Text('Preparing Sequencing Memory…')),
-          );
-        }
-        return _SequencingMemoryGameplay(bootstrap: snapshot.requireData);
-      },
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<SequencingMemoryBootstrapResult> snapshot,
+          ) {
+            if (!snapshot.hasData) {
+              return const PortraitShell(
+                child: Center(child: Text('Preparing Sequencing Memory…')),
+              );
+            }
+            return _SequencingMemoryGameplay(bootstrap: snapshot.requireData);
+          },
     );
   }
 }
@@ -571,21 +572,35 @@ class _PauseOverlay extends StatelessWidget {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'Paused',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 14),
-                PrimaryButton(label: 'Resume', onPressed: cubit.resume),
-                const SizedBox(height: 10),
-                OutlinedButton(
-                  onPressed: cubit.restart,
-                  child: const Text('Restart'),
-                ),
-              ],
+            child: SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Paused',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 14),
+                  PrimaryButton(label: 'Resume', onPressed: cubit.resume),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: cubit.restart,
+                      child: const Text('Restart'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: cubit.endGame,
+                      child: const Text('End Session'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

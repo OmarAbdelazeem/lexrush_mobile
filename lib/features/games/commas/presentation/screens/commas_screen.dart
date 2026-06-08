@@ -145,7 +145,7 @@ class _CommasGameplayState extends State<_CommasGameplay> {
                   ),
                 ),
                 if (state.status == CommasStatus.paused)
-                  _PausedOverlay(onResume: context.read<CommasCubit>().resume),
+                  _PausedOverlay(cubit: context.read<CommasCubit>()),
               ],
             ),
           );
@@ -335,9 +335,9 @@ class _HudTile extends StatelessWidget {
 }
 
 class _PausedOverlay extends StatelessWidget {
-  const _PausedOverlay({required this.onResume});
+  const _PausedOverlay({required this.cubit});
 
-  final VoidCallback onResume;
+  final CommasCubit cubit;
 
   @override
   Widget build(BuildContext context) {
@@ -345,10 +345,47 @@ class _PausedOverlay extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.58)),
         child: Center(
-          child: ElevatedButton.icon(
-            onPressed: onResume,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Resume'),
+          child: Container(
+            width: 300,
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'Paused',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: cubit.resume,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Resume'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: cubit.restart,
+                    child: const Text('Restart'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: cubit.endGame,
+                    child: const Text('End Session'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

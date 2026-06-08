@@ -522,14 +522,14 @@ class _AntonymRushGameplayState extends State<_AntonymRushGameplay> {
                             ),
                           ),
                         ),
-                      Positioned(
-                        top: 20,
-                        right: 90,
-                        child: Text(
-                          widget.gameTitle,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
+                      // Positioned(
+                      //   top: 20,
+                      //   right: 90,
+                      //   child: Text(
+                      //     widget.gameTitle,
+                      //     style: Theme.of(context).textTheme.bodyMedium,
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
